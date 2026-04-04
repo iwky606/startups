@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>动物股东 — 调试页</title>
+  <style>
+    body { font-family: monospace; padding: 20px; background: #1a1a1a; color: #eee; }
+    h2 { color: #f0c040; }
+    input { padding: 6px 10px; margin: 4px; border-radius: 4px; border: 1px solid #555; background: #333; color: #eee; }
+    button { padding: 6px 14px; margin: 4px; border-radius: 4px; border: none; background: #4a90d9; color: #fff; cursor: pointer; }
+    button:hover { background: #357abd; }
+    button:disabled { background: #555; cursor: default; }
+    #log { margin-top: 20px; background: #111; padding: 12px; border-radius: 6px; height: 320px; overflow-y: auto; font-size: 12px; }
+    .recv { color: #7ec87e; }
+    .sent { color: #7eb8e8; }
+    .err  { color: #e87e7e; }
+    #status { margin-bottom: 12px; }
+    #room-info { background: #2a2a2a; padding: 10px; border-radius: 6px; margin: 10px 0; min-height: 40px; }
+    hr { border-color: #444; }
+  </style>
+</head>
+<body>
+
+<h2>🃏 动物股东 — WebSocket 调试</h2>
+
+<div id="status">连接状态：<span id="conn-status" style="color:#e87e7e">未连接</span></div>
+
+<div>
+  <strong>步骤 1：创建 / 加入房间</strong><br>
+  <input id="player-name" placeholder="你的昵称" />
+  <button id="btn-connect" onclick="connectWS()">连接服务器</button>
+</div>
+
+<div style="margin-top:10px">
+  <button id="btn-create" onclick="createRoom()" disabled>创建房间</button>
+  &nbsp;&nbsp;
+  <input id="room-code-input" placeholder="房间码" maxlength="6" style="width:90px;text-transform:uppercase" />
+  <button id="btn-join" onclick="joinRoom()" disabled>加入房间</button>
+</div>
+
+<div style="margin-top:10px">
+  <strong>步骤 2：准备 / 开始</strong><br>
+  <button id="btn-ready" onclick="toggleReady()" disabled>准备</button>
+  <button id="btn-start" onclick="startGame()" disabled>开始游戏（房主）</button>
+  <button id="btn-leave" onclick="leaveRoom()" disabled>离开房间</button>
+</div>
+
+<div>
+  <strong>房间信息：</strong>
+  <div id="room-info">—</div>
+</div>
+
+<hr>
+<strong>消息日志：</strong>
+<div id="log"></div>
+
+<script>
+let ws = null;
+let myPlayerId = null;
+let myRoomCode = null;
+let isHost = false;
+
+function connectWS() {
+  const name = document.getElementById('player-name').value.trim();
+  if (!name) { alert('请输入昵称'); return; }
+  ws = new WebSocket('ws://localhost:8000/ws');
+
+  ws.onopen = () => {
+    setStatus('已连接', '#7ec87e');
+    document.getElementById('btn-create').disabled = false;
+    document.getElementById('btn-join').disabled = false;
+    document.getElementById('btn-connect').disabled = true;
+    log('系统', '已连接到服务器', 'recv');
+  };
+
+  ws.onclose = () => {
+    setStatus('已断开', '#e87e7e');
+    log('系统', '连接已断开', 'err');
+    resetButtons();
+  };
+
+  ws.onerror = (e) => {
+    log('错误', e.message || '连接错误', 'err');
+  };
+
+  ws.onmessage = (evt) => {
+    const msg = JSON.parse(evt.data);
+    log('← 收到', JSON.stringify(msg, null, 2), 'recv');
+    handleMessage(msg);
+  };
+}
+
+function send(obj) {
+  ws.send(JSON.stringify(obj));
+  log('→ 发送', JSON.stringify(obj), 'sent');
+}
+
+function createRoom() {
+  const name = document.getElementById('player-name').value.trim();
+  send({ type: 'create_room', player_name: name });
+}
+
+function joinRoom() {
+  const name = document.getElementById('player-name').value.trim();
+  const code = document.getElementById('room-code-input').value.trim().toUpperCase();
+  send({ type: 'join_room', room_code: code, player_name: name });
+}
+
+function toggleReady() {
+  send({ type: 'player_ready' });
+}
+
+function startGame() {
+  send({ type: 'start_game' });
+}
+
+function leaveRoom() {
+  send({ type: 'leave_room' });
+  myRoomCode = null;
+  isHost = false;
+  updateRoomInfo(null);
+  document.getElementById('btn-ready').disabled = true;
+  document.getElementById('btn-start').disabled = true;
+  document.getElementById('btn-leave').disabled = true;
+}
+
+function handleMessage(msg) {
+  if (msg.type === 'room_created') {
+    myPlayerId = msg.player_id;
+    myRoomCode = msg.room_code;
+  } else if (msg.type === 'room_update') {
+    myRoomCode = msg.room_code;
+    const me = msg.players.find(p => p.id === myPlayerId);
+    isHost = me ? me.is_host : false;
+    updateRoomInfo(msg);
+    document.getElementById('btn-ready').disabled = false;
+    document.getElementById('btn-start').disabled = !isHost;
+    document.getElementById('btn-leave').disabled = false;
+  } else if (msg.type === 'game_start') {
+    document.getElementById('room-info').innerHTML =
+      `<strong style="color:#f0c040">🎮 游戏已开始！</strong><br>` +
+      `你的手牌：${JSON.stringify(msg.game_state.players.find(p=>p.id===myPlayerId)?.hand)}<br>` +
+      `当前玩家：${msg.game_state.current_player_name}`;
+  } else if (msg.type === 'error') {
+    log('服务器错误', msg.message, 'err');
+  }
+}
+
+function updateRoomInfo(msg) {
+  const div = document.getElementById('room-info');
+  if (!msg) { div.innerHTML = '—'; return; }
+  const rows = msg.players.map(p =>
+    `${p.is_host ? '👑' : '　'} ${p.name}${p.is_ready ? ' ✅' : ''} (${p.id.slice(0,8)}...)`
+  ).join('<br>');
+  div.innerHTML = `房间码：<strong>${msg.room_code}</strong><br>${rows}`;
+}
+
+function setStatus(text, color) {
+  const el = document.getElementById('conn-status');
+  el.textContent = text;
+  el.style.color = color;
+}
+
+function resetButtons() {
+  ['btn-create','btn-join','btn-ready','btn-start','btn-leave'].forEach(id => {
+    document.getElementById(id).disabled = true;
+  });
+  document.getElementById('btn-connect').disabled = false;
+}
+
+function log(prefix, text, cls) {
+  const div = document.getElementById('log');
+  const pre = document.createElement('pre');
+  pre.className = cls;
+  pre.textContent = `[${prefix}] ${text}`;
+  div.appendChild(pre);
+  div.scrollTop = div.scrollHeight;
+}
+</script>
+
+</body>
+</html>
