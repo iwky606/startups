@@ -19,16 +19,23 @@
 <!-- 主棋盘 -->
 <div class="game-board">
 
-  <!-- 上方对手区（槽位 ⑤⑥） -->
-  <div class="area-top-opp" id="top-opp-area">
-    <div class="opp-slot" id="slot-5" style="display:none"></div>
-    <div class="opp-slot" id="slot-6" style="display:none"></div>
-  </div>
-
-  <!-- 左侧对手（槽位 ③ 上 / ① 下） -->
-  <div class="area-left-opp">
-    <div class="opp-slot" id="slot-3" style="display:none"></div>
-    <div class="opp-slot" id="slot-1" style="display:none"></div>
+  <!-- 对手区域包裹（桌面端透明，移动端变横向滑动条） -->
+  <div class="opp-wrap">
+    <!-- 上方对手区（槽位 ⑤⑥） -->
+    <div class="area-top-opp" id="top-opp-area">
+      <div class="opp-slot" id="slot-5" style="display:none"></div>
+      <div class="opp-slot" id="slot-6" style="display:none"></div>
+    </div>
+    <!-- 左侧对手（槽位 ③ 上 / ① 下） -->
+    <div class="area-left-opp">
+      <div class="opp-slot" id="slot-3" style="display:none"></div>
+      <div class="opp-slot" id="slot-1" style="display:none"></div>
+    </div>
+    <!-- 右侧对手（槽位 ④ 上 / ② 下） -->
+    <div class="area-right-opp">
+      <div class="opp-slot" id="slot-4" style="display:none"></div>
+      <div class="opp-slot" id="slot-2" style="display:none"></div>
+    </div>
   </div>
 
   <!-- 中央市场 -->
@@ -36,12 +43,6 @@
     <div class="market-grid" id="market-grid">
       <!-- 由 game.js 渲染 -->
     </div>
-  </div>
-
-  <!-- 右侧对手（槽位 ④ 上 / ② 下） -->
-  <div class="area-right-opp">
-    <div class="opp-slot" id="slot-4" style="display:none"></div>
-    <div class="opp-slot" id="slot-2" style="display:none"></div>
   </div>
 
   <!-- 自己区域 -->

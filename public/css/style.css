@@ -442,6 +442,9 @@ html, body {
 }
 
 /* ── 游戏主棋盘 Grid ─────────────────────────────────────────────────── */
+/* 桌面端：opp-wrap 透明（display:contents），其子区域直接参与 grid */
+.opp-wrap { display: contents; }
+
 .game-board {
   flex: 1;
   min-height: 0;
@@ -949,4 +952,114 @@ html, body {
   justify-content: center;
   flex-wrap: wrap;
   margin-top: 4px;
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   移动端适配  max-width: 640px
+   ════════════════════════════════════════════════════════════════════════ */
+@media (max-width: 640px) {
+
+  /* ── 主棋盘改为纵向 flex ─────────────────────────────────────────────── */
+  .game-board {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    padding: 5px 5px 6px;
+    overflow: hidden;
+  }
+
+  /* ── 对手横向滑动条 ──────────────────────────────────────────────────── */
+  .opp-wrap {
+    display: flex;
+    flex-direction: row;
+    flex-shrink: 0;
+    gap: 5px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    padding: 2px 0 4px;
+    /* 隐藏滚动条（美观） */
+    scrollbar-width: none;
+  }
+  .opp-wrap::-webkit-scrollbar { display: none; }
+
+  /* 三个区域变透明，slot 直接成为 opp-wrap 的 flex 子元素 */
+  .area-top-opp,
+  .area-left-opp,
+  .area-right-opp {
+    display: contents;
+  }
+
+  /* 每个对手槽固定宽度 */
+  .opp-slot {
+    flex: 0 0 auto;
+    width: 105px;
+  }
+
+  /* 对手面板：去掉最小宽度限制，统一紧凑样式 */
+  .opp-panel {
+    padding: 6px 7px;
+  }
+  .opp-top {
+    flex-direction: column;
+    min-width: unset;
+    max-width: unset;
+  }
+  .opp-top .opp-header { flex-direction: row; }
+  /* 移动端隐藏对手放置区（节省空间） */
+  .opp-panel .area-grid-wrap { display: none; }
+
+  /* ── 市场区全宽 ──────────────────────────────────────────────────────── */
+  .area-market {
+    flex: 1;
+    min-height: 0;
+    padding: 7px;
+  }
+
+  /* 市场卡稍小 */
+  .market-grid {
+    grid-template-columns: repeat(3, minmax(56px, 1fr));
+    grid-auto-rows: minmax(72px, 110px);
+    gap: 6px;
+  }
+  .mcard-emoji { font-size: 30px; }
+
+  /* ── 自己区域全宽，紧凑 ───────────────────────────────────────────────── */
+  .area-self {
+    flex-shrink: 0;
+    gap: 4px;
+  }
+
+  /* 手牌稍小 */
+  .hand-card {
+    width: 60px;
+    height: 80px;
+  }
+  .hcard-emoji { font-size: 28px; }
+  .hcard-total { font-size: 10px; }
+  .hand-area   { gap: 6px; min-height: 84px; }
+
+  /* 自己面板更紧凑 */
+  .self-panel {
+    padding: 6px 10px;
+    gap: 8px;
+  }
+  .self-avatar { width: 34px; height: 34px; font-size: 15px; }
+  .self-name   { font-size: 13px; }
+  .self-coins  { font-size: 12px; }
+
+  /* 放置区格子在自己面板中保留但缩小 */
+  .self-area-grid .area-cell { min-width: 28px; }
+  .self-area-grid .ac-emoji  { font-size: 12px; }
+  .self-area-grid .ac-count  { font-size: 9px; }
+
+  /* ── 操作栏 ──────────────────────────────────────────────────────────── */
+  .action-bar { padding: 4px 8px; gap: 8px; }
+  .btn-sm { padding: 6px 14px; font-size: 13px; }
+
+  /* ── 连接角标 ────────────────────────────────────────────────────────── */
+  .conn-badge { top: 6px; right: 8px; font-size: 10px; padding: 2px 7px; }
+
+  /* ── 回合条 ──────────────────────────────────────────────────────────── */
+  .turn-banner { height: 38px; font-size: 12px; }
 }
