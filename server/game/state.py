@@ -1,6 +1,7 @@
 """核心游戏状态与规则引擎"""
 
 import random
+import json
 from typing import Optional
 from .deck import Deck, CARD_CONFIG
 
@@ -365,7 +366,7 @@ class GameState:
         max_coins = max(coins.values())
         winners = [pid for pid, c in coins.items() if c == max_coins]
 
-        return {
+        end_result_dict={
             "final_coins": coins,
             "company_details": company_details,
             "winner": winners[0] if len(winners) == 1 else winners,
@@ -375,6 +376,10 @@ class GameState:
                 else [self._player_names[w] for w in winners]
             ),
         }
+
+        print("##end##\nend_result_dict: ",json.dumps(end_result_dict))
+
+        return end_result_dict
 
     # ─── 状态导出 ─────────────────────────────────────────────────
 
