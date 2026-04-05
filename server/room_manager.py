@@ -159,5 +159,13 @@ class RoomManager:
         return room
 
 
+    def abort_room(self, room_code: str):
+        """强制删除房间，清理所有玩家的映射（断线/游戏中止使用）"""
+        room = self.rooms.pop(room_code, None)
+        if room:
+            for pid in list(room.players.keys()):
+                self.player_room_map.pop(pid, None)
+
+
 # 全局单例
 room_manager = RoomManager()

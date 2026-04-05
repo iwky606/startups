@@ -28,6 +28,25 @@ class StartGameMsg(TypedDict):
     type: str          # "start_game"
 
 
+class DrawCardMsg(TypedDict):
+    type: str          # "draw_card"
+
+
+class PickMarketMsg(TypedDict):
+    type: str          # "pick_market"
+    card_index: int
+
+
+class PlayToMarketMsg(TypedDict):
+    type: str          # "play_to_market"
+    hand_index: int
+
+
+class PlayToAreaMsg(TypedDict):
+    type: str          # "play_to_area"
+    hand_index: int
+
+
 # ─── 服务端 → 客户端 ────────────────────────────────────────────────
 
 class PlayerInfo(TypedDict):
@@ -56,4 +75,43 @@ class ErrorMsg(TypedDict):
 
 class GameStartMsg(TypedDict):
     type: str          # "game_start"
-    game_state: dict   # 各玩家私有视角，由 state.get_state_for_player 生成
+    player_id: str
+    game_state: dict
+
+
+class GameStateMsg(TypedDict):
+    type: str          # "game_state"
+    state: dict
+
+
+class YourTurnMsg(TypedDict):
+    type: str          # "your_turn"
+    phase: str         # "draw" | "play"
+    # draw 阶段
+    draw_cost: Optional[int]
+    can_draw: Optional[bool]
+    blocked_market: Optional[list[int]]
+    # play 阶段
+    blocked_play_to_market: Optional[list[int]]
+
+
+class ActionResultMsg(TypedDict):
+    type: str          # "action_result"
+    action: str
+    success: bool
+    message: str
+
+
+class GameEndMsg(TypedDict):
+    type: str          # "game_end"
+    scores: dict       # {player_id: final_coins}
+    company_details: dict
+    winner: object     # str 或 list[str]（并列时）
+    winner_name: object
+    revealed_hands: dict   # {player_id: [cards]}
+    player_names: dict     # {player_id: name}
+
+
+class GameAbortedMsg(TypedDict):
+    type: str          # "game_aborted"
+    reason: str

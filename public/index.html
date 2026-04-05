@@ -1,172 +1,390 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-  <meta charset="UTF-8">
-  <title>动物股东 — 调试页</title>
-  <style>
-    body { font-family: monospace; padding: 20px; background: #1a1a1a; color: #eee; }
-    h2 { color: #f0c040; }
-    input { padding: 6px 10px; margin: 4px; border-radius: 4px; border: 1px solid #555; background: #333; color: #eee; }
-    button { padding: 6px 14px; margin: 4px; border-radius: 4px; border: none; background: #4a90d9; color: #fff; cursor: pointer; }
-    button:hover { background: #357abd; }
-    button:disabled { background: #555; cursor: default; }
-    #log { margin-top: 20px; background: #111; padding: 12px; border-radius: 6px; height: 320px; overflow-y: auto; font-size: 12px; }
-    .recv { color: #7ec87e; }
-    .sent { color: #7eb8e8; }
-    .err  { color: #e87e7e; }
-    #status { margin-bottom: 12px; }
-    #room-info { background: #2a2a2a; padding: 10px; border-radius: 6px; margin: 10px 0; min-height: 40px; }
-    hr { border-color: #444; }
-  </style>
+<meta charset="UTF-8">
+<title>动物股东 — 调试</title>
+<style>
+* { box-sizing: border-box; }
+body { font-family: monospace; background: #1a1a1a; color: #eee; margin: 0; padding: 12px; font-size: 13px; }
+h3 { color: #f0c040; margin: 8px 0 4px; }
+input  { padding: 5px 8px; border-radius: 4px; border: 1px solid #555; background: #2a2a2a; color: #eee; width: 120px; }
+button { padding: 5px 12px; border-radius: 4px; border: none; background: #4a90d9; color: #fff; cursor: pointer; margin: 2px; }
+button:hover:not(:disabled) { background: #357abd; }
+button:disabled { background: #444; color: #888; cursor: default; }
+button.green { background: #3a9a4a; }
+button.red   { background: #9a3a3a; }
+.row  { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 4px 0; }
+.panel { background: #222; border: 1px solid #444; border-radius: 6px; padding: 8px 12px; margin: 6px 0; }
+#log  { background: #111; padding: 8px; border-radius: 6px; height: 220px; overflow-y: auto; font-size: 11px; }
+.recv { color: #7ec87e; } .sent { color: #7eb8e8; } .sys { color: #aaa; } .err { color: #e87e7e; }
+#game-panel { display: none; }
+.card-btn { padding: 4px 8px; background: #554; border: 1px solid #776; border-radius: 3px; cursor: pointer; font-size: 14px; }
+.card-btn:hover { background: #776; }
+.card-btn.selected { background: #9a7a30; border-color: #f0c040; }
+.market-btn { padding: 4px 8px; background: #345; border: 1px solid #456; border-radius: 3px; cursor: pointer; font-size: 14px; }
+.market-btn:hover { background: #456; }
+.market-btn.blocked { background: #333; color: #666; cursor: not-allowed; }
+.market-btn.selected { background: #2a6a9a; border-color: #7eb8e8; }
+#turn-banner { padding: 6px 12px; border-radius: 4px; background: #3a5a2a; font-weight: bold; }
+#turn-banner.other { background: #3a3a3a; }
+table { border-collapse: collapse; width: 100%; }
+td, th { border: 1px solid #444; padding: 3px 6px; text-align: left; font-size: 12px; }
+th { background: #333; }
+</style>
 </head>
 <body>
 
-<h2>🃏 动物股东 — WebSocket 调试</h2>
-
-<div id="status">连接状态：<span id="conn-status" style="color:#e87e7e">未连接</span></div>
-
-<div>
-  <strong>步骤 1：创建 / 加入房间</strong><br>
-  <input id="player-name" placeholder="你的昵称" />
-  <button id="btn-connect" onclick="connectWS()">连接服务器</button>
+<!-- ═══ 连接 & 房间 ═══════════════════════════════════════════════════════ -->
+<div id="lobby-panel">
+  <h3>连接 & 房间</h3>
+  <div class="row">
+    <input id="player-name" placeholder="昵称" style="width:100px">
+    <button id="btn-connect" onclick="connectWS()">连接服务器</button>
+    <span id="conn-status" style="color:#e87e7e">未连接</span>
+  </div>
+  <div class="row">
+    <button id="btn-create" onclick="createRoom()" disabled>创建房间</button>
+    <input id="room-code-input" placeholder="房间码" maxlength="6" style="width:90px;text-transform:uppercase">
+    <button id="btn-join" onclick="joinRoom()" disabled>加入房间</button>
+  </div>
+  <div class="panel" id="room-info">—</div>
+  <div class="row">
+    <button id="btn-ready" onclick="toggleReady()" disabled>准备</button>
+    <button id="btn-start" class="green" onclick="startGame()" disabled>开始游戏（房主）</button>
+    <button id="btn-leave" class="red" onclick="leaveRoom()" disabled>离开</button>
+  </div>
 </div>
 
-<div style="margin-top:10px">
-  <button id="btn-create" onclick="createRoom()" disabled>创建房间</button>
-  &nbsp;&nbsp;
-  <input id="room-code-input" placeholder="房间码" maxlength="6" style="width:90px;text-transform:uppercase" />
-  <button id="btn-join" onclick="joinRoom()" disabled>加入房间</button>
+<!-- ═══ 游戏内操作 ══════════════════════════════════════════════════════════ -->
+<div id="game-panel">
+  <div id="turn-banner">—</div>
+
+  <!-- 状态概览 -->
+  <div class="panel">
+    <strong>我的状态</strong>
+    <div class="row" id="my-coins-row">💰 —</div>
+    <div><strong>手牌：</strong><span id="my-hand-display" class="row"></span></div>
+    <div><strong>放置区：</strong><span id="my-area-display"></span></div>
+  </div>
+
+  <!-- 市场 -->
+  <div class="panel">
+    <strong>市场</strong>（牌堆剩余 <span id="deck-remaining">?</span> 张，摸牌费用 <span id="draw-cost">?</span>）
+    <div class="row" id="market-display"></div>
+  </div>
+
+  <!-- 其他玩家 -->
+  <div class="panel">
+    <strong>其他玩家</strong>
+    <table id="other-players-table">
+      <tr><th>玩家</th><th>资金</th><th>手牌数</th><th>放置区</th><th>反垄断</th></tr>
+    </table>
+  </div>
+
+  <!-- Draw 阶段操作 -->
+  <div id="draw-actions" class="panel" style="display:none">
+    <h3>阶段一：获取卡牌</h3>
+    <div class="row">
+      <button id="btn-draw" onclick="drawCard()">摸牌（费用 <span id="btn-draw-cost">?</span>）</button>
+      <span style="color:#aaa">或点击市场卡取牌</span>
+    </div>
+  </div>
+
+  <!-- Play 阶段操作 -->
+  <div id="play-actions" class="panel" style="display:none">
+    <h3>阶段二：打出卡牌（点手牌选中后操作）</h3>
+    <div class="row">
+      <button id="btn-play-market" onclick="playToMarket()" disabled>打出到市场</button>
+      <button id="btn-play-area" onclick="playToArea()" disabled>放入放置区</button>
+    </div>
+    <div style="color:#aaa;font-size:11px" id="play-hint"></div>
+  </div>
 </div>
 
-<div style="margin-top:10px">
-  <strong>步骤 2：准备 / 开始</strong><br>
-  <button id="btn-ready" onclick="toggleReady()" disabled>准备</button>
-  <button id="btn-start" onclick="startGame()" disabled>开始游戏（房主）</button>
-  <button id="btn-leave" onclick="leaveRoom()" disabled>离开房间</button>
-</div>
-
-<div>
-  <strong>房间信息：</strong>
-  <div id="room-info">—</div>
-</div>
-
-<hr>
-<strong>消息日志：</strong>
+<!-- ═══ 消息日志 ════════════════════════════════════════════════════════════ -->
+<h3>消息日志</h3>
 <div id="log"></div>
 
 <script>
+// ─── 状态 ────────────────────────────────────────────────────────────────
 let ws = null;
-let myPlayerId = null;
+let myId = null;
 let myRoomCode = null;
 let isHost = false;
+let gameState = null;
+let selectedHandIndex = -1;
+let selectedMarketIndex = -1;
+let yourTurnInfo = null;  // 最近一次 your_turn 消息
 
+// ─── WebSocket ────────────────────────────────────────────────────────────
 function connectWS() {
   const name = document.getElementById('player-name').value.trim();
   if (!name) { alert('请输入昵称'); return; }
   ws = new WebSocket('ws://localhost:8000/ws');
-
   ws.onopen = () => {
-    setStatus('已连接', '#7ec87e');
-    document.getElementById('btn-create').disabled = false;
-    document.getElementById('btn-join').disabled = false;
-    document.getElementById('btn-connect').disabled = true;
-    log('系统', '已连接到服务器', 'recv');
+    setConnStatus('已连接', '#7ec87e');
+    en('btn-create'); en('btn-join');
+    dis('btn-connect');
+    log('系统', '已连接', 'sys');
   };
-
-  ws.onclose = () => {
-    setStatus('已断开', '#e87e7e');
-    log('系统', '连接已断开', 'err');
-    resetButtons();
-  };
-
-  ws.onerror = (e) => {
-    log('错误', e.message || '连接错误', 'err');
-  };
-
-  ws.onmessage = (evt) => {
-    const msg = JSON.parse(evt.data);
-    log('← 收到', JSON.stringify(msg, null, 2), 'recv');
-    handleMessage(msg);
+  ws.onclose = () => { setConnStatus('已断开', '#e87e7e'); log('系统', '连接断开', 'err'); };
+  ws.onerror = () => log('错误', '连接错误', 'err');
+  ws.onmessage = (e) => {
+    const msg = JSON.parse(e.data);
+    log('← 收', JSON.stringify(msg, null, 2), 'recv');
+    dispatch(msg);
   };
 }
 
 function send(obj) {
   ws.send(JSON.stringify(obj));
-  log('→ 发送', JSON.stringify(obj), 'sent');
+  log('→ 发', JSON.stringify(obj), 'sent');
 }
 
-function createRoom() {
-  const name = document.getElementById('player-name').value.trim();
-  send({ type: 'create_room', player_name: name });
-}
-
-function joinRoom() {
-  const name = document.getElementById('player-name').value.trim();
-  const code = document.getElementById('room-code-input').value.trim().toUpperCase();
-  send({ type: 'join_room', room_code: code, player_name: name });
-}
-
-function toggleReady() {
-  send({ type: 'player_ready' });
-}
-
-function startGame() {
-  send({ type: 'start_game' });
-}
-
-function leaveRoom() {
-  send({ type: 'leave_room' });
-  myRoomCode = null;
-  isHost = false;
-  updateRoomInfo(null);
-  document.getElementById('btn-ready').disabled = true;
-  document.getElementById('btn-start').disabled = true;
-  document.getElementById('btn-leave').disabled = true;
-}
-
-function handleMessage(msg) {
-  if (msg.type === 'room_created') {
-    myPlayerId = msg.player_id;
-    myRoomCode = msg.room_code;
-  } else if (msg.type === 'room_update') {
-    myRoomCode = msg.room_code;
-    const me = msg.players.find(p => p.id === myPlayerId);
-    isHost = me ? me.is_host : false;
-    updateRoomInfo(msg);
-    document.getElementById('btn-ready').disabled = false;
-    document.getElementById('btn-start').disabled = !isHost;
-    document.getElementById('btn-leave').disabled = false;
-  } else if (msg.type === 'game_start') {
-    document.getElementById('room-info').innerHTML =
-      `<strong style="color:#f0c040">🎮 游戏已开始！</strong><br>` +
-      `你的手牌：${JSON.stringify(msg.game_state.players.find(p=>p.id===myPlayerId)?.hand)}<br>` +
-      `当前玩家：${msg.game_state.current_player_name}`;
-  } else if (msg.type === 'error') {
-    log('服务器错误', msg.message, 'err');
+// ─── 消息分发 ─────────────────────────────────────────────────────────────
+function dispatch(msg) {
+  switch (msg.type) {
+    case 'room_created':
+      myId = msg.player_id; myRoomCode = msg.room_code;
+      break;
+    case 'room_update':
+      handleRoomUpdate(msg); break;
+    case 'game_start':
+      handleGameStart(msg); break;
+    case 'game_state':
+      handleGameState(msg.state); break;
+    case 'your_turn':
+      handleYourTurn(msg); break;
+    case 'action_result':
+      if (!msg.success) log('操作', msg.message, 'err');
+      break;
+    case 'game_end':
+      handleGameEnd(msg); break;
+    case 'game_aborted':
+      log('系统', `游戏终止：${msg.reason}`, 'err');
+      showLobby(); break;
+    case 'player_disconnected':
+      log('系统', `玩家 ${msg.player_name} 断线`, 'err'); break;
+    case 'error':
+      log('错误', msg.message, 'err'); break;
   }
 }
 
-function updateRoomInfo(msg) {
-  const div = document.getElementById('room-info');
-  if (!msg) { div.innerHTML = '—'; return; }
+// ─── 房间阶段 ─────────────────────────────────────────────────────────────
+function createRoom() { send({ type: 'create_room', player_name: pname() }); }
+function joinRoom()   { send({ type: 'join_room', room_code: document.getElementById('room-code-input').value.trim().toUpperCase(), player_name: pname() }); }
+function toggleReady(){ send({ type: 'player_ready' }); }
+function startGame()  { send({ type: 'start_game' }); }
+function leaveRoom()  { send({ type: 'leave_room' }); showLobby(); }
+function pname()      { return document.getElementById('player-name').value.trim(); }
+
+function handleRoomUpdate(msg) {
+  myRoomCode = msg.room_code;
+  const me = msg.players.find(p => p.id === myId);
+  isHost = me ? me.is_host : false;
   const rows = msg.players.map(p =>
-    `${p.is_host ? '👑' : '　'} ${p.name}${p.is_ready ? ' ✅' : ''} (${p.id.slice(0,8)}...)`
+    `${p.is_host ? '👑' : '　'} ${p.name}${p.is_ready ? ' ✅' : ''}`
   ).join('<br>');
-  div.innerHTML = `房间码：<strong>${msg.room_code}</strong><br>${rows}`;
+  document.getElementById('room-info').innerHTML = `房间码：<strong>${msg.room_code}</strong><br>${rows}`;
+  en('btn-ready'); dis_if('btn-start', !isHost); en('btn-leave');
 }
 
-function setStatus(text, color) {
-  const el = document.getElementById('conn-status');
-  el.textContent = text;
-  el.style.color = color;
+// ─── 游戏阶段 ─────────────────────────────────────────────────────────────
+function handleGameStart(msg) {
+  document.getElementById('lobby-panel').style.display = 'none';
+  document.getElementById('game-panel').style.display = 'block';
+  handleGameState(msg.game_state);
 }
 
-function resetButtons() {
-  ['btn-create','btn-join','btn-ready','btn-start','btn-leave'].forEach(id => {
-    document.getElementById(id).disabled = true;
+function handleGameState(state) {
+  gameState = state;
+  renderState(state);
+}
+
+function handleYourTurn(msg) {
+  yourTurnInfo = msg;
+  selectedHandIndex = -1;
+  selectedMarketIndex = -1;
+  renderTurnUI(msg);
+}
+
+function renderState(state) {
+  const me = state.players.find(p => p.id === myId);
+  if (!me) return;
+
+  // 资金
+  document.getElementById('my-coins-row').innerHTML = `💰 ${me.coins} 资金`;
+
+  // 手牌
+  const handDiv = document.getElementById('my-hand-display');
+  handDiv.innerHTML = '';
+  (me.hand || []).forEach((card, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'card-btn' + (i === selectedHandIndex ? ' selected' : '');
+    btn.textContent = `[${i}] ${card}`;
+    btn.onclick = () => selectHand(i);
+    handDiv.appendChild(btn);
   });
-  document.getElementById('btn-connect').disabled = false;
+
+  // 放置区
+  document.getElementById('my-area-display').textContent =
+    Object.entries(me.area).filter(([,v]) => v > 0).map(([k,v]) => `${k}×${v}`).join('  ') || '（空）';
+
+  // 牌堆 & 摸牌费用
+  document.getElementById('deck-remaining').textContent = state.deck_remaining;
+  if (yourTurnInfo) {
+    document.getElementById('draw-cost').textContent = yourTurnInfo.draw_cost ?? '?';
+    const btnDraw = document.getElementById('btn-draw');
+    document.getElementById('btn-draw-cost').textContent = yourTurnInfo.draw_cost ?? '?';
+    btnDraw.disabled = !(yourTurnInfo.phase === 'draw' && yourTurnInfo.can_draw && state.current_player_id === myId);
+  }
+
+  // 市场
+  renderMarket(state);
+
+  // 其他玩家
+  const tbody = document.querySelector('#other-players-table');
+  while (tbody.rows.length > 1) tbody.deleteRow(1);
+  state.players.filter(p => p.id !== myId).forEach(p => {
+    const tr = tbody.insertRow();
+    const isCurrent = p.id === state.current_player_id;
+    tr.style.background = isCurrent ? '#2a3a2a' : '';
+    tr.innerHTML = `<td>${isCurrent ? '▶' : ''} ${p.name}${p.id === state.current_player_id ? ' (当前)' : ''}</td>
+      <td>💰${p.coins}</td><td>${p.hand}</td>
+      <td>${Object.entries(p.area).filter(([,v])=>v>0).map(([k,v])=>`${k}×${v}`).join(' ')||'—'}</td>
+      <td>${(p.anti_monopoly||[]).join(' ')||'—'}</td>`;
+  });
+
+  // 回合横幅
+  const isMyTurn = state.current_player_id === myId;
+  const banner = document.getElementById('turn-banner');
+  if (state.phase === 'ended') {
+    banner.textContent = '🏁 游戏结束';
+    banner.className = 'other';
+    document.getElementById('draw-actions').style.display = 'none';
+    document.getElementById('play-actions').style.display = 'none';
+  } else {
+    const curName = state.current_player_name;
+    banner.textContent = isMyTurn
+      ? `▶ 轮到你 — ${state.turn_phase === 'draw' ? '阶段一：获取卡牌' : '阶段二：打出卡牌'}`
+      : `等待 ${curName} 操作…（${state.turn_phase}）`;
+    banner.className = isMyTurn ? '' : 'other';
+  }
 }
+
+function renderMarket(state) {
+  const div = document.getElementById('market-display');
+  div.innerHTML = '';
+  if (state.market.length === 0) {
+    div.textContent = '（市场为空）';
+    return;
+  }
+  const blocked = yourTurnInfo?.blocked_market || [];
+  state.market.forEach((slot, i) => {
+    const isBlocked = blocked.includes(i);
+    const isMyTurn = state.current_player_id === myId && yourTurnInfo?.phase === 'draw';
+    const btn = document.createElement('button');
+    btn.className = 'market-btn' + (isBlocked ? ' blocked' : '') + (i === selectedMarketIndex ? ' selected' : '');
+    btn.textContent = `[${i}] ${slot.card} +${slot.coins}💰`;
+    btn.title = isBlocked ? '反垄断标记阻止' : `取牌（获得 ${slot.coins} 资金）`;
+    btn.onclick = () => {
+      if (isBlocked || !isMyTurn) return;
+      selectMarket(i);
+    };
+    div.appendChild(btn);
+  });
+}
+
+function renderTurnUI(msg) {
+  const isMyTurn = gameState && gameState.current_player_id === myId;
+  document.getElementById('draw-actions').style.display = isMyTurn && msg.phase === 'draw' ? '' : 'none';
+  document.getElementById('play-actions').style.display = isMyTurn && msg.phase === 'play' ? '' : 'none';
+
+  if (msg.phase === 'draw') {
+    document.getElementById('btn-draw-cost').textContent = msg.draw_cost;
+    document.getElementById('btn-draw').disabled = !msg.can_draw;
+  }
+  if (msg.phase === 'play') {
+    const blocked = msg.blocked_play_to_market || [];
+    document.getElementById('play-hint').textContent =
+      blocked.length ? `手牌索引 ${blocked.join(',')} 不可打回市场（规则限制）` : '';
+    updatePlayButtons();
+  }
+  // 重绘市场（更新 blocked 状态）
+  if (gameState) renderMarket(gameState);
+}
+
+function selectHand(i) {
+  selectedHandIndex = (selectedHandIndex === i) ? -1 : i;
+  if (gameState) renderState(gameState);
+  updatePlayButtons();
+}
+
+function selectMarket(i) {
+  if (!yourTurnInfo || yourTurnInfo.phase !== 'draw') return;
+  selectedMarketIndex = (selectedMarketIndex === i) ? -1 : i;
+  if (gameState) renderMarket(gameState);
+  // 双击确认：选中后直接发送
+  if (selectedMarketIndex !== -1) pickMarket(selectedMarketIndex);
+}
+
+function updatePlayButtons() {
+  const hasSel = selectedHandIndex >= 0;
+  const isMyTurn = gameState && gameState.current_player_id === myId;
+  const inPlay = yourTurnInfo && yourTurnInfo.phase === 'play';
+  const blocked = yourTurnInfo?.blocked_play_to_market || [];
+
+  dis_if('btn-play-market', !(hasSel && isMyTurn && inPlay) || blocked.includes(selectedHandIndex));
+  dis_if('btn-play-area', !(hasSel && isMyTurn && inPlay));
+}
+
+// ─── 游戏动作 ─────────────────────────────────────────────────────────────
+function drawCard()   { send({ type: 'draw_card' }); }
+function pickMarket(i) { send({ type: 'pick_market', card_index: i }); selectedMarketIndex = -1; }
+function playToMarket() {
+  if (selectedHandIndex < 0) return;
+  send({ type: 'play_to_market', hand_index: selectedHandIndex });
+  selectedHandIndex = -1;
+}
+function playToArea() {
+  if (selectedHandIndex < 0) return;
+  send({ type: 'play_to_area', hand_index: selectedHandIndex });
+  selectedHandIndex = -1;
+}
+
+// ─── 游戏结束 ─────────────────────────────────────────────────────────────
+function handleGameEnd(msg) {
+  const names = msg.player_names;
+  let html = `<h3 style="color:#f0c040">🏆 游戏结束！获胜者：${msg.winner_name}</h3>`;
+  html += '<table><tr><th>玩家</th><th>最终资金</th></tr>';
+  Object.entries(msg.scores).forEach(([pid, coins]) => {
+    html += `<tr><td>${names[pid]}</td><td>💰${coins}</td></tr>`;
+  });
+  html += '</table>';
+  html += '<br><strong>手牌公开：</strong><br>';
+  Object.entries(msg.revealed_hands).forEach(([pid, hand]) => {
+    html += `${names[pid]}：${hand.join(' ')}<br>`;
+  });
+  document.getElementById('turn-banner').innerHTML = html;
+  document.getElementById('draw-actions').style.display = 'none';
+  document.getElementById('play-actions').style.display = 'none';
+}
+
+// ─── 辅助 ─────────────────────────────────────────────────────────────────
+function showLobby() {
+  document.getElementById('game-panel').style.display = 'none';
+  document.getElementById('lobby-panel').style.display = 'block';
+  yourTurnInfo = null; gameState = null;
+}
+
+function setConnStatus(t, c) {
+  const el = document.getElementById('conn-status');
+  el.textContent = t; el.style.color = c;
+}
+
+function en(id)              { document.getElementById(id).disabled = false; }
+function dis(id)             { document.getElementById(id).disabled = true; }
+function dis_if(id, cond)    { document.getElementById(id).disabled = cond; }
 
 function log(prefix, text, cls) {
   const div = document.getElementById('log');
@@ -177,6 +395,5 @@ function log(prefix, text, cls) {
   div.scrollTop = div.scrollHeight;
 }
 </script>
-
 </body>
 </html>
