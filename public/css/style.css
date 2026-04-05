@@ -855,50 +855,98 @@ html, body {
 }
 
 /* ── 游戏结束遮罩 ─────────────────────────────────────────────────────── */
+/* ── 游戏结束 overlay ─────────────────────────────────────────────── */
 .game-end-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,0.82);
+  background: rgba(0,0,0,0.88);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 300;
+  overflow-y: auto;
+  padding: 16px;
 }
 .game-end-card {
   background: #131d13;
   border: 2px solid var(--color-primary);
   border-radius: 20px;
-  padding: 32px 28px;
+  padding: 28px 22px 22px;
   text-align: center;
-  max-width: 360px;
-  width: 90vw;
+  max-width: 480px;
+  width: 100%;
   box-shadow: 0 20px 60px rgba(0,0,0,0.7);
 }
-.game-end-icon    { font-size: 52px; margin-bottom: 8px; }
-.game-end-title   { font-size: 22px; font-weight: 900; color: var(--color-primary); margin-bottom: 6px; }
-.game-end-winner  { font-size: 15px; color: rgba(255,255,255,0.85); margin-bottom: 16px; }
-.score-list       { display: flex; flex-direction: column; gap: 5px; margin-bottom: 12px; }
-.score-row {
-  display: flex; justify-content: space-between;
-  padding: 6px 12px;
+.game-end-icon   { font-size: 48px; margin-bottom: 6px; }
+.game-end-title  { font-size: 22px; font-weight: 900; color: var(--color-primary); margin-bottom: 4px; }
+.game-end-winner { font-size: 14px; color: rgba(255,255,255,0.8); margin-bottom: 16px; }
+
+/* ── 每位玩家结果行 */
+.er-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; text-align: left; }
+.er-row {
+  padding: 10px 12px;
   background: rgba(255,255,255,0.06);
-  border-radius: 8px;
-  color: rgba(255,255,255,0.75);
-  font-size: 14px;
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
 }
-.score-row.score-me {
-  background: rgba(245,158,11,0.14);
+.er-row.er-me {
+  background: rgba(245,158,11,0.12);
   border: 1px solid rgba(245,158,11,0.3);
-  color: #fef3c7;
-  font-weight: 700;
 }
-.revealed-hands {
-  font-size: 11px;
+.er-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.er-rank  { font-size: 18px; width: 28px; flex-shrink: 0; }
+.er-name  { flex: 1; font-size: 14px; font-weight: 700; color: #fff; }
+.er-coins { font-size: 13px; color: rgba(255,255,255,0.6); white-space: nowrap; }
+.er-coins strong { color: #fbbf24; }
+.er-cards-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
   color: rgba(255,255,255,0.5);
+  padding-left: 34px;
+}
+.er-label { color: rgba(255,255,255,0.35); font-size: 11px; }
+.er-card  { font-size: 18px; line-height: 1; }
+.er-card sub { font-size: 10px; color: rgba(255,255,255,0.5); vertical-align: baseline; }
+
+/* ── 结算详情折叠 */
+.cd-details {
+  margin-bottom: 14px;
   text-align: left;
-  padding: 8px 10px;
+}
+.cd-details summary {
+  font-size: 12px;
+  color: rgba(255,255,255,0.4);
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+  text-align: center;
+  margin-bottom: 6px;
+}
+.cd-body { display: flex; flex-direction: column; gap: 4px; }
+.cd-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: rgba(255,255,255,0.6);
+  padding: 4px 8px;
   background: rgba(0,0,0,0.2);
-  border-radius: 8px;
-  margin-bottom: 12px;
-  line-height: 1.6;
+  border-radius: 6px;
+}
+
+/* ── 按钮区 */
+.game-end-btns {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-top: 4px;
 }

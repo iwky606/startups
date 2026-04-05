@@ -36,6 +36,7 @@ let selHndIdx = -1;      // 被选中的手牌索引，-1=无
   gameWS.on('your_turn',           _onYourTurn);
   gameWS.on('action_result',       (m) => { if (!m.success) showToast(m.message, 'error'); });
   gameWS.on('game_end',            _onGameEnd);
+  gameWS.on('lobby_ready',        (m) => { window.location.href = `/room?code=${m.room_code}`; });
   gameWS.on('game_aborted',        (m) => showToast('游戏终止：' + m.reason, 'error', 5000));
   gameWS.on('player_disconnected', (m) => showToast('玩家 ' + m.player_name + ' 断线', 'error'));
   gameWS.on('error',               (m) => showToast(m.message, 'error'));
@@ -458,34 +459,73 @@ function _checkAntiChange(oldState, newState) {
 // 游戏结束
 // ════════════════════════════════════════════════════════════════════════
 function _renderGameEnd(msg) {
-  const names = msg.player_names || {};
   document.getElementById('turn-banner').className = 'turn-banner';
   _setText('turn-text', '🏁 游戏结束');
   document.getElementById('action-bar').style.display = 'none';
 
-  // winner 可能是单个 pid 或并列时的数组
+  const names      = msg.player_names   || {};
+  const preCoins   = msg.pre_coins      || {};
+  const finalCoins = msg.scores         || {};
+  const hands      = msg.revealed_hands || {};
+  const areas      = msg.areas          || {};
+  const details    = msg.company_details || {};
+
   const winnerPids  = Array.isArray(msg.winner)      ? msg.winner      : [msg.winner];
   const winnerLabel = Array.isArray(msg.winner_name) ? msg.winner_name.join('、') : msg.winner_name;
 
-  const scoreRows = Object.entries(msg.scores || {})
-    .sort(([, a], [, b]) => b - a)
-    .map(([pid, coins]) => {
-      const isWinner = winnerPids.includes(pid);
-      const isMe     = pid === myId;
-      return `<div class="score-row${isMe ? ' score-me' : ''}">
-        <span>${_esc(names[pid] || pid)}${isWinner ? ' 🏆' : ''}</span>
-        <span>💰${coins}</span>
-      </div>`;
-    }).join('');
+  const RANKS = ['🥇','🥈','🥉'];
 
-  let handsHtml = '';
-  const hands = msg.revealed_hands || {};
-  if (Object.keys(hands).length) {
-    handsHtml = `<div class="revealed-hands"><strong style="color:rgba(255,255,255,0.7)">手牌公开：</strong><br>` +
-      Object.entries(hands).map(([pid, h]) =>
-        `${_esc(names[pid] || pid)}：${h.join(' ')}`
-      ).join('<br>') + '</div>';
-  }
+  // ── 按最终金币排序的玩家列表
+  const ranked = Object.entries(finalCoins).sort(([,a],[,b]) => b - a);
+
+  const scoreRows = ranked.map(([pid, coins], i) => {
+    const isWinner = winnerPids.includes(pid);
+    const isMe     = pid === myId;
+    const rank     = RANKS[i] || `${i+1}.`;
+    const pre      = preCoins[pid] ?? '?';
+
+    // 手牌 emoji 行
+    const handCards = (hands[pid] || []);
+    const handHtml  = handCards.length
+      ? handCards.map(c => `<span class="er-card">${c}</span>`).join('')
+      : '<span style="opacity:.4">（无）</span>';
+
+    // 放置区：仅展示 count > 0 的
+    const areaObj   = areas[pid] || {};
+    const areaItems = Object.entries(areaObj).filter(([,v]) => v > 0);
+    const areaHtml  = areaItems.length
+      ? areaItems.map(([animal, cnt]) => `<span class="er-card">${animal}<sub>×${cnt}</sub></span>`).join('')
+      : '<span style="opacity:.4">（空）</span>';
+
+    return `<div class="er-row${isMe ? ' er-me' : ''}">
+      <div class="er-header">
+        <span class="er-rank">${rank}</span>
+        <span class="er-name">${_esc(names[pid] || pid)}${isWinner ? ' 🏆' : ''}</span>
+        <span class="er-coins">💰${pre} → <strong>💰${coins}</strong></span>
+      </div>
+      <div class="er-cards-row">
+        <span class="er-label">手牌</span>${handHtml}
+        <span class="er-label" style="margin-left:8px">放置</span>${areaHtml}
+      </div>
+    </div>`;
+  }).join('');
+
+  // ── 公司结算详情（折叠）
+  const detailRows = Object.entries(details).map(([animal, d]) => {
+    if (!d.major_shareholder) {
+      return `<div class="cd-row"><span>${animal}</span><span style="opacity:.5">${d.reason || '无结算'}</span></div>`;
+    }
+    const penaltySummary = Object.entries(d.penalties || {})
+      .map(([pid, n]) => `${_esc(names[pid]||pid)} -${n}💰`).join('、');
+    return `<div class="cd-row">
+      <span>${animal} 大股东：${_esc(d.major_shareholder_name)}</span>
+      <span>${penaltySummary || '无人被收'}</span>
+    </div>`;
+  }).join('');
+
+  const lobbyBtn = msg.room_code
+    ? `<button class="btn btn-primary" onclick="returnToLobby('${_esc(msg.room_code)}')">↩ 返回房间</button>`
+    : '';
 
   const overlay = document.createElement('div');
   overlay.className = 'game-end-overlay';
@@ -494,11 +534,23 @@ function _renderGameEnd(msg) {
       <div class="game-end-icon">🏆</div>
       <div class="game-end-title">游戏结束！</div>
       <div class="game-end-winner">获胜者：<strong>${_esc(winnerLabel)}</strong></div>
-      <div class="score-list">${scoreRows}</div>
-      ${handsHtml}
-      <a href="/" class="btn btn-primary" style="margin-top:16px;display:inline-flex">← 返回首页</a>
+      <div class="er-list">${scoreRows}</div>
+      <details class="cd-details">
+        <summary>结算详情</summary>
+        <div class="cd-body">${detailRows}</div>
+      </details>
+      <div class="game-end-btns">
+        ${lobbyBtn}
+        <a href="/" class="btn btn-secondary">← 返回首页</a>
+      </div>
     </div>`;
   document.body.appendChild(overlay);
+}
+
+function returnToLobby(code) {
+  gameWS.send('return_to_lobby');
+  // lobby_ready 广播收到后会自动跳转；如果自己没收到（已断线），手动跳转
+  setTimeout(() => { window.location.href = `/room?code=${code}`; }, 600);
 }
 
 // ════════════════════════════════════════════════════════════════════════

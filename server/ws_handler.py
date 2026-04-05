@@ -76,15 +76,20 @@ async def handle_game_end(room: Room):
     # 手牌全公开
     revealed_hands = {pid: list(gs._hands[pid]) for pid in gs._player_ids}
     player_names = {pid: info.name for pid, info in room.players.items()}
+    pre_coins  = {pid: gs._coins[pid] for pid in gs._player_ids}
+    areas      = {pid: dict(gs._areas[pid]) for pid in gs._player_ids}
 
     await broadcast_to_room(room, {
         "type": "game_end",
         "scores": scores["final_coins"],
+        "pre_coins": pre_coins,
         "company_details": scores["company_details"],
         "winner": scores["winner"],
         "winner_name": scores["winner_name"],
         "revealed_hands": revealed_hands,
+        "areas": areas,
         "player_names": player_names,
+        "room_code": room.room_code,
     })
 
 
@@ -126,7 +131,12 @@ async def handle_join_room(player_id: str, data: dict, ws: WebSocket):
     """
     返回值：
     - None          正常加入（player_id 不变）
-    - str(old_pid)  重连成功，调用方应将 effective_id 切换为 old_pid
+    - str(old_pid)  重连/重入成功，调用方应将 effective_id 切换为 old_pid
+
+    尝试顺序：
+    1. 普通加入（等待阶段）
+    2. 游戏中重连（同名玩家，rejoin_room）
+    3. 对局结束后回到大厅（rejoin_lobby）
     """
     room_code = data.get("room_code", "").strip().upper()
     player_name = data.get("player_name", "").strip()
@@ -135,7 +145,7 @@ async def handle_join_room(player_id: str, data: dict, ws: WebSocket):
         await send_to_player(ws, {"type": "error", "message": "房间码和昵称不能为空"})
         return None
 
-    # ── 先尝试正常加入（等待阶段）
+    # ── 1. 普通加入（等待阶段）
     try:
         room = room_manager.join_room(room_code, player_id, player_name, ws)
         await send_to_player(ws, {
@@ -146,28 +156,46 @@ async def handle_join_room(player_id: str, data: dict, ws: WebSocket):
         await broadcast_room_update(room)
         return None
     except ValueError as join_err:
-        pass   # 可能是游戏已开始，尝试重连
+        original_err = join_err
 
-    # ── 尝试重连（游戏进行中，同名玩家回来了）
+    # ── 2. 游戏进行中重连
     try:
         old_pid = room_manager.rejoin_room(room_code, player_name, ws)
-    except ValueError as rejoin_err:
-        # 两种尝试都失败，返回原始加入错误
-        await send_to_player(ws, {"type": "error", "message": str(join_err)})
-        return None
+        room = room_manager.get_room(room_code)
+        gs   = room.game_state
+        # 先发 game_start 让 room.html 导航到 game.html
+        await send_to_player(ws, {
+            "type": "game_start",
+            "player_id": old_pid,
+            "room_code": room_code,
+        })
+        await send_to_player(ws, {
+            "type": "game_state",
+            "state": gs.get_state_for_player(old_pid),
+        })
+        if gs.current_player_id == old_pid:
+            await send_to_player(ws, _build_your_turn(gs, old_pid))
+        return old_pid
+    except ValueError:
+        pass
 
-    # 重连成功：下发当前游戏状态
-    room = room_manager.get_room(room_code)
-    gs   = room.game_state
-    await send_to_player(ws, {
-        "type": "game_state",
-        "state": gs.get_state_for_player(old_pid),
-    })
-    # 如果轮到该玩家，补发 your_turn
-    if gs.current_player_id == old_pid:
-        await send_to_player(ws, _build_your_turn(gs, old_pid))
+    # ── 3. 对局结束后重回大厅
+    try:
+        old_pid = room_manager.rejoin_lobby(room_code, player_name, ws)
+        room = room_manager.get_room(room_code)
+        await send_to_player(ws, {
+            "type": "room_created",
+            "room_code": room_code,
+            "player_id": old_pid,
+        })
+        await broadcast_room_update(room)
+        return old_pid
+    except ValueError:
+        pass
 
-    return old_pid   # 通知调用方切换 effective_id
+    # 三种方式都失败
+    await send_to_player(ws, {"type": "error", "message": str(original_err)})
+    return None
 
 
 async def handle_player_ready(player_id: str):
@@ -284,6 +312,24 @@ async def handle_play_to_area(player_id: str, data: dict, ws: WebSocket):
     await _after_play(player_id, room)
 
 
+# ─── 回到大厅 ─────────────────────────────────────────────────────────
+
+async def handle_return_to_lobby(player_id: str):
+    room = room_manager.get_player_room(player_id)
+    if room is None:
+        return
+    gs = room.game_state
+    if gs is None or gs.phase != "ended":
+        return  # 仅在游戏结束后允许
+
+    # 先广播（ws 还在线），再重置（ws 置 None）
+    await broadcast_to_room(room, {
+        "type": "lobby_ready",
+        "room_code": room.room_code,
+    })
+    room_manager.reset_room(room.room_code)
+
+
 # ─── 断线处理 ─────────────────────────────────────────────────────────
 
 async def handle_disconnect(player_id: str):
@@ -339,6 +385,8 @@ async def handle_connection(player_id: str, ws: WebSocket):
                 await handle_play_to_market(effective_id, data, ws)
             elif msg_type == "play_to_area":
                 await handle_play_to_area(effective_id, data, ws)
+            elif msg_type == "return_to_lobby":
+                await handle_return_to_lobby(effective_id)
             else:
                 await send_to_player(ws, {"type": "error", "message": f"未知消息类型：{msg_type}"})
 

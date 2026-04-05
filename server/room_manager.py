@@ -197,6 +197,43 @@ class RoomManager:
         if info:
             info.ws = None
 
+    def reset_room(self, room_code: str):
+        """
+        游戏结束后重置为等待状态：
+        - 清除 game_state
+        - 重置所有玩家的 is_ready
+        - 将所有玩家 ws 置 None，清除 player_room_map（等待重连）
+        """
+        room = self.rooms.get(room_code)
+        if room is None:
+            return
+        room.game_state = None
+        for pid, info in room.players.items():
+            info.is_ready = False
+            info.ws = None
+            self.player_room_map.pop(pid, None)
+
+    def rejoin_lobby(
+        self,
+        room_code: str,
+        player_name: str,
+        new_ws: WebSocket,
+    ) -> str:
+        """
+        大厅重置后重连：找到同名玩家（ws=None），更新 ws，返回原 player_id。
+        """
+        room = self.rooms.get(room_code)
+        if room is None:
+            raise ValueError(f"房间 {room_code} 不存在")
+        if room.is_started:
+            raise ValueError("游戏尚未重置")
+        for pid, info in room.players.items():
+            if info.name == player_name and info.ws is None:
+                info.ws = new_ws
+                self.player_room_map[pid] = room_code
+                return pid
+        raise ValueError(f"玩家「{player_name}」不在此房间的等待列表中")
+
     def abort_room(self, room_code: str):
         """强制删除房间，清理所有玩家的映射（断线/游戏中止使用）"""
         room = self.rooms.pop(room_code, None)
