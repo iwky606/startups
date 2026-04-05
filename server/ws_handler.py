@@ -121,25 +121,51 @@ async def handle_create_room(player_id: str, data: dict, ws: WebSocket):
 
 
 async def handle_join_room(player_id: str, data: dict, ws: WebSocket):
+    """
+    返回值：
+    - None          正常加入（player_id 不变）
+    - str(old_pid)  重连成功，调用方应将 effective_id 切换为 old_pid
+    """
     room_code = data.get("room_code", "").strip().upper()
     player_name = data.get("player_name", "").strip()
 
     if not room_code or not player_name:
         await send_to_player(ws, {"type": "error", "message": "房间码和昵称不能为空"})
-        return
+        return None
 
+    # ── 先尝试正常加入（等待阶段）
     try:
         room = room_manager.join_room(room_code, player_id, player_name, ws)
-    except ValueError as e:
-        await send_to_player(ws, {"type": "error", "message": str(e)})
-        return
+        await send_to_player(ws, {
+            "type": "room_created",
+            "room_code": room.room_code,
+            "player_id": player_id,
+        })
+        await broadcast_room_update(room)
+        return None
+    except ValueError as join_err:
+        pass   # 可能是游戏已开始，尝试重连
 
+    # ── 尝试重连（游戏进行中，同名玩家回来了）
+    try:
+        old_pid = room_manager.rejoin_room(room_code, player_name, ws)
+    except ValueError as rejoin_err:
+        # 两种尝试都失败，返回原始加入错误
+        await send_to_player(ws, {"type": "error", "message": str(join_err)})
+        return None
+
+    # 重连成功：下发当前游戏状态
+    room = room_manager.get_room(room_code)
+    gs   = room.game_state
     await send_to_player(ws, {
-        "type": "room_created",
-        "room_code": room.room_code,
-        "player_id": player_id,
+        "type": "game_state",
+        "state": gs.get_state_for_player(old_pid),
     })
-    await broadcast_room_update(room)
+    # 如果轮到该玩家，补发 your_turn
+    if gs.current_player_id == old_pid:
+        await send_to_player(ws, _build_your_turn(gs, old_pid))
+
+    return old_pid   # 通知调用方切换 effective_id
 
 
 async def handle_player_ready(player_id: str):
@@ -265,23 +291,9 @@ async def handle_disconnect(player_id: str):
 
     gs = room.game_state
     if gs is not None and gs.phase not in ("ended",):
-        # 游戏进行中断线：通知其余玩家，终止游戏
-        player_name = room.players.get(player_id, None)
-        name = player_name.name if player_name else "未知玩家"
-        remaining = [(pid, info) for pid, info in room.players.items() if pid != player_id]
-
-        room_manager.abort_room(room.room_code)
-
-        for pid, info in remaining:
-            await send_to_player(info.ws, {
-                "type": "player_disconnected",
-                "player_id": player_id,
-                "player_name": name,
-            })
-            await send_to_player(info.ws, {
-                "type": "game_aborted",
-                "reason": f"玩家「{name}」断线，游戏终止",
-            })
+        # 游戏进行中断线：保留房间，等待玩家重连（页面跳转会触发短暂断线）
+        # 仅将 WS 置 None，不 abort 也不通知其他玩家
+        room_manager.mark_player_disconnected(player_id)
     else:
         # 等待阶段或游戏已结束：正常移除
         remaining_room = room_manager.leave_room(player_id)
@@ -292,6 +304,8 @@ async def handle_disconnect(player_id: str):
 # ─── 主连接处理 ───────────────────────────────────────────────────────
 
 async def handle_connection(player_id: str, ws: WebSocket):
+    # effective_id 可在重连时被替换为旧 player_id（游戏状态里的那个）
+    effective_id = player_id
     try:
         while True:
             raw = await ws.receive_text()
@@ -304,26 +318,28 @@ async def handle_connection(player_id: str, ws: WebSocket):
             msg_type = data.get("type", "")
 
             if msg_type == "create_room":
-                await handle_create_room(player_id, data, ws)
+                await handle_create_room(effective_id, data, ws)
             elif msg_type == "join_room":
-                await handle_join_room(player_id, data, ws)
+                new_id = await handle_join_room(effective_id, data, ws)
+                if new_id:
+                    effective_id = new_id   # 重连：切换到游戏内的原始 player_id
             elif msg_type == "leave_room":
-                await handle_disconnect(player_id)
+                await handle_disconnect(effective_id)
             elif msg_type == "player_ready":
-                await handle_player_ready(player_id)
+                await handle_player_ready(effective_id)
             elif msg_type == "start_game":
-                await handle_start_game(player_id, ws)
+                await handle_start_game(effective_id, ws)
             elif msg_type == "draw_card":
-                await handle_draw_card(player_id, ws)
+                await handle_draw_card(effective_id, ws)
             elif msg_type == "pick_market":
-                await handle_pick_market(player_id, data, ws)
+                await handle_pick_market(effective_id, data, ws)
             elif msg_type == "play_to_market":
-                await handle_play_to_market(player_id, data, ws)
+                await handle_play_to_market(effective_id, data, ws)
             elif msg_type == "play_to_area":
-                await handle_play_to_area(player_id, data, ws)
+                await handle_play_to_area(effective_id, data, ws)
             else:
                 await send_to_player(ws, {"type": "error", "message": f"未知消息类型：{msg_type}"})
 
     except WebSocketDisconnect:
-        logger.info(f"玩家 {player_id} 断线")
-        await handle_disconnect(player_id)
+        logger.info(f"玩家 {effective_id} 断线")
+        await handle_disconnect(effective_id)

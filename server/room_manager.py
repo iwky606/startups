@@ -159,6 +159,43 @@ class RoomManager:
         return room
 
 
+    def rejoin_room(
+        self,
+        room_code: str,
+        player_name: str,
+        new_ws: WebSocket,
+    ) -> str:
+        """
+        游戏进行中重连。找到同名玩家，更新其 WebSocket 引用，返回原 player_id。
+        用于页面跳转（room→game）导致的短暂断线后重连。
+        """
+        room = self.rooms.get(room_code)
+        if room is None:
+            raise ValueError(f"房间 {room_code} 不存在")
+        if not room.is_started:
+            raise ValueError("游戏尚未开始")
+        for pid, info in room.players.items():
+            if info.name == player_name:
+                info.ws = new_ws
+                self.player_room_map[pid] = room_code   # 重建映射
+                return pid
+        raise ValueError(f"玩家「{player_name}」不在此游戏中")
+
+    def mark_player_disconnected(self, player_id: str):
+        """
+        游戏进行中断线：将玩家 WS 置为 None，保留房间等待重连。
+        不删除 room.players 中的记录，不 abort 房间。
+        """
+        code = self.player_room_map.pop(player_id, None)
+        if code is None:
+            return
+        room = self.rooms.get(code)
+        if room is None:
+            return
+        info = room.players.get(player_id)
+        if info:
+            info.ws = None
+
     def abort_room(self, room_code: str):
         """强制删除房间，清理所有玩家的映射（断线/游戏中止使用）"""
         room = self.rooms.pop(room_code, None)
