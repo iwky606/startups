@@ -2,398 +2,156 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<title>动物股东 — 调试</title>
-<style>
-* { box-sizing: border-box; }
-body { font-family: monospace; background: #1a1a1a; color: #eee; margin: 0; padding: 12px; font-size: 13px; }
-h3 { color: #f0c040; margin: 8px 0 4px; }
-input  { padding: 5px 8px; border-radius: 4px; border: 1px solid #555; background: #2a2a2a; color: #eee; width: 120px; }
-button { padding: 5px 12px; border-radius: 4px; border: none; background: #4a90d9; color: #fff; cursor: pointer; margin: 2px; }
-button:hover:not(:disabled) { background: #357abd; }
-button:disabled { background: #444; color: #888; cursor: default; }
-button.green { background: #3a9a4a; }
-button.red   { background: #9a3a3a; }
-.row  { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 4px 0; }
-.panel { background: #222; border: 1px solid #444; border-radius: 6px; padding: 8px 12px; margin: 6px 0; }
-#log  { background: #111; padding: 8px; border-radius: 6px; height: 220px; overflow-y: auto; font-size: 11px; }
-.recv { color: #7ec87e; } .sent { color: #7eb8e8; } .sys { color: #aaa; } .err { color: #e87e7e; }
-#game-panel { display: none; }
-.card-btn { padding: 4px 8px; background: #554; border: 1px solid #776; border-radius: 3px; cursor: pointer; font-size: 14px; }
-.card-btn:hover { background: #776; }
-.card-btn.selected { background: #9a7a30; border-color: #f0c040; }
-.market-btn { padding: 4px 8px; background: #345; border: 1px solid #456; border-radius: 3px; cursor: pointer; font-size: 14px; }
-.market-btn:hover { background: #456; }
-.market-btn.blocked { background: #333; color: #666; cursor: not-allowed; }
-.market-btn.selected { background: #2a6a9a; border-color: #7eb8e8; }
-#turn-banner { padding: 6px 12px; border-radius: 4px; background: #3a5a2a; font-weight: bold; }
-#turn-banner.other { background: #3a3a3a; }
-table { border-collapse: collapse; width: 100%; }
-td, th { border: 1px solid #444; padding: 3px 6px; text-align: left; font-size: 12px; }
-th { background: #333; }
-</style>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>动物股东 — Animal Shareholders</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="/static/css/style.css">
 </head>
-<body>
+<body class="felt-bg min-h-screen flex flex-col items-center justify-center p-4">
 
-<!-- ═══ 连接 & 房间 ═══════════════════════════════════════════════════════ -->
-<div id="lobby-panel">
-  <h3>连接 & 房间</h3>
-  <div class="row">
-    <input id="player-name" placeholder="昵称" style="width:100px">
-    <button id="btn-connect" onclick="connectWS()">连接服务器</button>
-    <span id="conn-status" style="color:#e87e7e">未连接</span>
-  </div>
-  <div class="row">
-    <button id="btn-create" onclick="createRoom()" disabled>创建房间</button>
-    <input id="room-code-input" placeholder="房间码" maxlength="6" style="width:90px;text-transform:uppercase">
-    <button id="btn-join" onclick="joinRoom()" disabled>加入房间</button>
-  </div>
-  <div class="panel" id="room-info">—</div>
-  <div class="row">
-    <button id="btn-ready" onclick="toggleReady()" disabled>准备</button>
-    <button id="btn-start" class="green" onclick="startGame()" disabled>开始游戏（房主）</button>
-    <button id="btn-leave" class="red" onclick="leaveRoom()" disabled>离开</button>
-  </div>
-</div>
+<!-- Toast 容器 -->
+<div id="toast-container" class="toast-container"></div>
 
-<!-- ═══ 游戏内操作 ══════════════════════════════════════════════════════════ -->
-<div id="game-panel">
-  <div id="turn-banner">—</div>
+<!-- 主卡片 -->
+<div class="w-full max-w-sm panel-glass p-8 flex flex-col gap-6">
 
-  <!-- 状态概览 -->
-  <div class="panel">
-    <strong>我的状态</strong>
-    <div class="row" id="my-coins-row">💰 —</div>
-    <div><strong>手牌：</strong><span id="my-hand-display" class="row"></span></div>
-    <div><strong>放置区：</strong><span id="my-area-display"></span></div>
-  </div>
-
-  <!-- 市场 -->
-  <div class="panel">
-    <strong>市场</strong>（牌堆剩余 <span id="deck-remaining">?</span> 张，摸牌费用 <span id="draw-cost">?</span>）
-    <div class="row" id="market-display"></div>
-  </div>
-
-  <!-- 其他玩家 -->
-  <div class="panel">
-    <strong>其他玩家</strong>
-    <table id="other-players-table">
-      <tr><th>玩家</th><th>资金</th><th>手牌数</th><th>放置区</th><th>反垄断</th></tr>
-    </table>
-  </div>
-
-  <!-- Draw 阶段操作 -->
-  <div id="draw-actions" class="panel" style="display:none">
-    <h3>阶段一：获取卡牌</h3>
-    <div class="row">
-      <button id="btn-draw" onclick="drawCard()">摸牌（费用 <span id="btn-draw-cost">?</span>）</button>
-      <span style="color:#aaa">或点击市场卡取牌</span>
+  <!-- 标题区 -->
+  <div class="text-center flex flex-col items-center gap-3">
+    <!-- 浮动动物 -->
+    <div class="flex gap-3 text-4xl select-none" aria-hidden="true">
+      <span class="float-1">🦒</span>
+      <span class="float-2">🐶</span>
+      <span class="float-3">🦢</span>
+      <span class="float-4">🐙</span>
+      <span class="float-5">🦛</span>
+      <span class="float-6">🐘</span>
     </div>
+    <h1 class="text-3xl font-black text-white tracking-wide leading-tight">
+      动 物 股 东
+    </h1>
+    <p class="text-sm font-medium" style="color:rgba(255,255,255,0.55); letter-spacing:0.05em">
+      Animal Shareholders
+    </p>
   </div>
 
-  <!-- Play 阶段操作 -->
-  <div id="play-actions" class="panel" style="display:none">
-    <h3>阶段二：打出卡牌（点手牌选中后操作）</h3>
-    <div class="row">
-      <button id="btn-play-market" onclick="playToMarket()" disabled>打出到市场</button>
-      <button id="btn-play-area" onclick="playToArea()" disabled>放入放置区</button>
-    </div>
-    <div style="color:#aaa;font-size:11px" id="play-hint"></div>
+  <!-- 昵称输入 -->
+  <div>
+    <label class="block text-sm font-semibold text-white/80 mb-2">你的昵称</label>
+    <input
+      id="nickname"
+      type="text"
+      class="input-field"
+      placeholder="1-8个字符"
+      maxlength="8"
+      autocomplete="off"
+      spellcheck="false"
+    >
+    <p id="nickname-error" class="error-text"></p>
   </div>
+
+  <!-- 创建房间 -->
+  <button id="btn-create" class="btn btn-primary btn-lg w-full" onclick="handleCreate()">
+    创建房间
+  </button>
+
+  <!-- 分割线 -->
+  <div class="divider">或者</div>
+
+  <!-- 加入房间 -->
+  <div>
+    <label class="block text-sm font-semibold text-white/80 mb-2">房间码</label>
+    <input
+      id="room-code"
+      type="text"
+      class="input-field"
+      placeholder="6位房间码"
+      maxlength="6"
+      autocomplete="off"
+      spellcheck="false"
+      style="text-transform:uppercase; letter-spacing:0.15em; font-size:18px; font-weight:700;"
+    >
+    <p id="room-code-error" class="error-text"></p>
+  </div>
+
+  <button id="btn-join" class="btn btn-secondary btn-lg w-full" onclick="handleJoin()">
+    加入房间
+  </button>
+
+  <!-- 底部说明 -->
+  <p class="text-center text-xs" style="color:rgba(255,255,255,0.35)">
+    3 - 7 人 &nbsp;·&nbsp; 卡牌策略桌游 &nbsp;·&nbsp; 10-20 分钟
+  </p>
+
 </div>
-
-<!-- ═══ 消息日志 ════════════════════════════════════════════════════════════ -->
-<h3>消息日志</h3>
-<div id="log"></div>
 
 <script>
-// ─── 状态 ────────────────────────────────────────────────────────────────
-let ws = null;
-let myId = null;
-let myRoomCode = null;
-let isHost = false;
-let gameState = null;
-let selectedHandIndex = -1;
-let selectedMarketIndex = -1;
-let yourTurnInfo = null;  // 最近一次 your_turn 消息
-
-// ─── WebSocket ────────────────────────────────────────────────────────────
-function connectWS() {
-  const name = document.getElementById('player-name').value.trim();
-  if (!name) { alert('请输入昵称'); return; }
-  ws = new WebSocket('ws://localhost:8000/ws');
-  ws.onopen = () => {
-    setConnStatus('已连接', '#7ec87e');
-    en('btn-create'); en('btn-join');
-    dis('btn-connect');
-    log('系统', '已连接', 'sys');
-  };
-  ws.onclose = () => { setConnStatus('已断开', '#e87e7e'); log('系统', '连接断开', 'err'); };
-  ws.onerror = () => log('错误', '连接错误', 'err');
-  ws.onmessage = (e) => {
-    const msg = JSON.parse(e.data);
-    log('← 收', JSON.stringify(msg, null, 2), 'recv');
-    dispatch(msg);
-  };
-}
-
-function send(obj) {
-  ws.send(JSON.stringify(obj));
-  log('→ 发', JSON.stringify(obj), 'sent');
-}
-
-// ─── 消息分发 ─────────────────────────────────────────────────────────────
-function dispatch(msg) {
-  switch (msg.type) {
-    case 'room_created':
-      myId = msg.player_id; myRoomCode = msg.room_code;
-      break;
-    case 'room_update':
-      handleRoomUpdate(msg); break;
-    case 'game_start':
-      handleGameStart(msg); break;
-    case 'game_state':
-      handleGameState(msg.state); break;
-    case 'your_turn':
-      handleYourTurn(msg); break;
-    case 'action_result':
-      if (!msg.success) log('操作', msg.message, 'err');
-      break;
-    case 'game_end':
-      handleGameEnd(msg); break;
-    case 'game_aborted':
-      log('系统', `游戏终止：${msg.reason}`, 'err');
-      showLobby(); break;
-    case 'player_disconnected':
-      log('系统', `玩家 ${msg.player_name} 断线`, 'err'); break;
-    case 'error':
-      log('错误', msg.message, 'err'); break;
+// ── 初始化：检查 URL 参数 ────────────────────────────────────────────────
+(function init() {
+  const params = new URLSearchParams(location.search);
+  const code = params.get('code') || params.get('room');
+  if (code) {
+    document.getElementById('room-code').value = code.toUpperCase().slice(0, 6);
+    document.getElementById('nickname').focus();
   }
+})();
+
+// 房间码输入自动大写+只允许字母数字
+document.getElementById('room-code').addEventListener('input', (e) => {
+  e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+});
+
+// ── 校验 ─────────────────────────────────────────────────────────────────
+function validateNickname() {
+  const name = document.getElementById('nickname').value.trim();
+  if (!name) { setFieldError('nickname', '请输入昵称'); return null; }
+  if (name.length > 8) { setFieldError('nickname', '昵称最多8个字符'); return null; }
+  clearFieldError('nickname');
+  return name;
 }
 
-// ─── 房间阶段 ─────────────────────────────────────────────────────────────
-function createRoom() { send({ type: 'create_room', player_name: pname() }); }
-function joinRoom()   { send({ type: 'join_room', room_code: document.getElementById('room-code-input').value.trim().toUpperCase(), player_name: pname() }); }
-function toggleReady(){ send({ type: 'player_ready' }); }
-function startGame()  { send({ type: 'start_game' }); }
-function leaveRoom()  { send({ type: 'leave_room' }); showLobby(); }
-function pname()      { return document.getElementById('player-name').value.trim(); }
-
-function handleRoomUpdate(msg) {
-  myRoomCode = msg.room_code;
-  const me = msg.players.find(p => p.id === myId);
-  isHost = me ? me.is_host : false;
-  const rows = msg.players.map(p =>
-    `${p.is_host ? '👑' : '　'} ${p.name}${p.is_ready ? ' ✅' : ''}`
-  ).join('<br>');
-  document.getElementById('room-info').innerHTML = `房间码：<strong>${msg.room_code}</strong><br>${rows}`;
-  en('btn-ready'); dis_if('btn-start', !isHost); en('btn-leave');
+function setFieldError(field, msg) {
+  const isNick = field === 'nickname';
+  document.getElementById(isNick ? 'nickname' : 'room-code').classList.add('error');
+  document.getElementById(isNick ? 'nickname-error' : 'room-code-error').textContent = msg;
+}
+function clearFieldError(field) {
+  const isNick = field === 'nickname';
+  document.getElementById(isNick ? 'nickname' : 'room-code').classList.remove('error');
+  document.getElementById(isNick ? 'nickname-error' : 'room-code-error').textContent = '';
 }
 
-// ─── 游戏阶段 ─────────────────────────────────────────────────────────────
-function handleGameStart(msg) {
-  document.getElementById('lobby-panel').style.display = 'none';
-  document.getElementById('game-panel').style.display = 'block';
-  handleGameState(msg.game_state);
+// ── 创建房间：只做校验，导航交给 room.html 处理 ──────────────────────────
+function handleCreate() {
+  const name = validateNickname();
+  if (!name) return;
+  sessionStorage.setItem('player_name', name);
+  sessionStorage.setItem('room_action', 'create');
+  window.location.href = '/room?action=create';
 }
 
-function handleGameState(state) {
-  gameState = state;
-  renderState(state);
+// ── 加入房间：只做校验，导航交给 room.html 处理 ──────────────────────────
+function handleJoin() {
+  const name = validateNickname();
+  if (!name) return;
+
+  const code = document.getElementById('room-code').value.trim().toUpperCase();
+  if (!code) { setFieldError('room-code', '请输入房间码'); return; }
+  if (code.length !== 6) { setFieldError('room-code', '房间码应为6位'); return; }
+  clearFieldError('room-code');
+
+  sessionStorage.setItem('player_name', name);
+  sessionStorage.setItem('room_action', 'join');
+  sessionStorage.setItem('room_code', code);
+  window.location.href = `/room?code=${code}`;
 }
 
-function handleYourTurn(msg) {
-  yourTurnInfo = msg;
-  selectedHandIndex = -1;
-  selectedMarketIndex = -1;
-  renderTurnUI(msg);
-}
-
-function renderState(state) {
-  const me = state.players.find(p => p.id === myId);
-  if (!me) return;
-
-  // 资金
-  document.getElementById('my-coins-row').innerHTML = `💰 ${me.coins} 资金`;
-
-  // 手牌
-  const handDiv = document.getElementById('my-hand-display');
-  handDiv.innerHTML = '';
-  (me.hand || []).forEach((card, i) => {
-    const btn = document.createElement('button');
-    btn.className = 'card-btn' + (i === selectedHandIndex ? ' selected' : '');
-    btn.textContent = `[${i}] ${card}`;
-    btn.onclick = () => selectHand(i);
-    handDiv.appendChild(btn);
-  });
-
-  // 放置区
-  document.getElementById('my-area-display').textContent =
-    Object.entries(me.area).filter(([,v]) => v > 0).map(([k,v]) => `${k}×${v}`).join('  ') || '（空）';
-
-  // 牌堆 & 摸牌费用
-  document.getElementById('deck-remaining').textContent = state.deck_remaining;
-  if (yourTurnInfo) {
-    document.getElementById('draw-cost').textContent = yourTurnInfo.draw_cost ?? '?';
-    const btnDraw = document.getElementById('btn-draw');
-    document.getElementById('btn-draw-cost').textContent = yourTurnInfo.draw_cost ?? '?';
-    btnDraw.disabled = !(yourTurnInfo.phase === 'draw' && yourTurnInfo.can_draw && state.current_player_id === myId);
-  }
-
-  // 市场
-  renderMarket(state);
-
-  // 其他玩家
-  const tbody = document.querySelector('#other-players-table');
-  while (tbody.rows.length > 1) tbody.deleteRow(1);
-  state.players.filter(p => p.id !== myId).forEach(p => {
-    const tr = tbody.insertRow();
-    const isCurrent = p.id === state.current_player_id;
-    tr.style.background = isCurrent ? '#2a3a2a' : '';
-    tr.innerHTML = `<td>${isCurrent ? '▶' : ''} ${p.name}${p.id === state.current_player_id ? ' (当前)' : ''}</td>
-      <td>💰${p.coins}</td><td>${p.hand}</td>
-      <td>${Object.entries(p.area).filter(([,v])=>v>0).map(([k,v])=>`${k}×${v}`).join(' ')||'—'}</td>
-      <td>${(p.anti_monopoly||[]).join(' ')||'—'}</td>`;
-  });
-
-  // 回合横幅
-  const isMyTurn = state.current_player_id === myId;
-  const banner = document.getElementById('turn-banner');
-  if (state.phase === 'ended') {
-    banner.textContent = '🏁 游戏结束';
-    banner.className = 'other';
-    document.getElementById('draw-actions').style.display = 'none';
-    document.getElementById('play-actions').style.display = 'none';
-  } else {
-    const curName = state.current_player_name;
-    banner.textContent = isMyTurn
-      ? `▶ 轮到你 — ${state.turn_phase === 'draw' ? '阶段一：获取卡牌' : '阶段二：打出卡牌'}`
-      : `等待 ${curName} 操作…（${state.turn_phase}）`;
-    banner.className = isMyTurn ? '' : 'other';
-  }
-}
-
-function renderMarket(state) {
-  const div = document.getElementById('market-display');
-  div.innerHTML = '';
-  if (state.market.length === 0) {
-    div.textContent = '（市场为空）';
-    return;
-  }
-  const blocked = yourTurnInfo?.blocked_market || [];
-  state.market.forEach((slot, i) => {
-    const isBlocked = blocked.includes(i);
-    const isMyTurn = state.current_player_id === myId && yourTurnInfo?.phase === 'draw';
-    const btn = document.createElement('button');
-    btn.className = 'market-btn' + (isBlocked ? ' blocked' : '') + (i === selectedMarketIndex ? ' selected' : '');
-    btn.textContent = `[${i}] ${slot.card} +${slot.coins}💰`;
-    btn.title = isBlocked ? '反垄断标记阻止' : `取牌（获得 ${slot.coins} 资金）`;
-    btn.onclick = () => {
-      if (isBlocked || !isMyTurn) return;
-      selectMarket(i);
-    };
-    div.appendChild(btn);
-  });
-}
-
-function renderTurnUI(msg) {
-  const isMyTurn = gameState && gameState.current_player_id === myId;
-  document.getElementById('draw-actions').style.display = isMyTurn && msg.phase === 'draw' ? '' : 'none';
-  document.getElementById('play-actions').style.display = isMyTurn && msg.phase === 'play' ? '' : 'none';
-
-  if (msg.phase === 'draw') {
-    document.getElementById('btn-draw-cost').textContent = msg.draw_cost;
-    document.getElementById('btn-draw').disabled = !msg.can_draw;
-  }
-  if (msg.phase === 'play') {
-    const blocked = msg.blocked_play_to_market || [];
-    document.getElementById('play-hint').textContent =
-      blocked.length ? `手牌索引 ${blocked.join(',')} 不可打回市场（规则限制）` : '';
-    updatePlayButtons();
-  }
-  // 重绘市场（更新 blocked 状态）
-  if (gameState) renderMarket(gameState);
-}
-
-function selectHand(i) {
-  selectedHandIndex = (selectedHandIndex === i) ? -1 : i;
-  if (gameState) renderState(gameState);
-  updatePlayButtons();
-}
-
-function selectMarket(i) {
-  if (!yourTurnInfo || yourTurnInfo.phase !== 'draw') return;
-  selectedMarketIndex = (selectedMarketIndex === i) ? -1 : i;
-  if (gameState) renderMarket(gameState);
-  // 双击确认：选中后直接发送
-  if (selectedMarketIndex !== -1) pickMarket(selectedMarketIndex);
-}
-
-function updatePlayButtons() {
-  const hasSel = selectedHandIndex >= 0;
-  const isMyTurn = gameState && gameState.current_player_id === myId;
-  const inPlay = yourTurnInfo && yourTurnInfo.phase === 'play';
-  const blocked = yourTurnInfo?.blocked_play_to_market || [];
-
-  dis_if('btn-play-market', !(hasSel && isMyTurn && inPlay) || blocked.includes(selectedHandIndex));
-  dis_if('btn-play-area', !(hasSel && isMyTurn && inPlay));
-}
-
-// ─── 游戏动作 ─────────────────────────────────────────────────────────────
-function drawCard()   { send({ type: 'draw_card' }); }
-function pickMarket(i) { send({ type: 'pick_market', card_index: i }); selectedMarketIndex = -1; }
-function playToMarket() {
-  if (selectedHandIndex < 0) return;
-  send({ type: 'play_to_market', hand_index: selectedHandIndex });
-  selectedHandIndex = -1;
-}
-function playToArea() {
-  if (selectedHandIndex < 0) return;
-  send({ type: 'play_to_area', hand_index: selectedHandIndex });
-  selectedHandIndex = -1;
-}
-
-// ─── 游戏结束 ─────────────────────────────────────────────────────────────
-function handleGameEnd(msg) {
-  const names = msg.player_names;
-  let html = `<h3 style="color:#f0c040">🏆 游戏结束！获胜者：${msg.winner_name}</h3>`;
-  html += '<table><tr><th>玩家</th><th>最终资金</th></tr>';
-  Object.entries(msg.scores).forEach(([pid, coins]) => {
-    html += `<tr><td>${names[pid]}</td><td>💰${coins}</td></tr>`;
-  });
-  html += '</table>';
-  html += '<br><strong>手牌公开：</strong><br>';
-  Object.entries(msg.revealed_hands).forEach(([pid, hand]) => {
-    html += `${names[pid]}：${hand.join(' ')}<br>`;
-  });
-  document.getElementById('turn-banner').innerHTML = html;
-  document.getElementById('draw-actions').style.display = 'none';
-  document.getElementById('play-actions').style.display = 'none';
-}
-
-// ─── 辅助 ─────────────────────────────────────────────────────────────────
-function showLobby() {
-  document.getElementById('game-panel').style.display = 'none';
-  document.getElementById('lobby-panel').style.display = 'block';
-  yourTurnInfo = null; gameState = null;
-}
-
-function setConnStatus(t, c) {
-  const el = document.getElementById('conn-status');
-  el.textContent = t; el.style.color = c;
-}
-
-function en(id)              { document.getElementById(id).disabled = false; }
-function dis(id)             { document.getElementById(id).disabled = true; }
-function dis_if(id, cond)    { document.getElementById(id).disabled = cond; }
-
-function log(prefix, text, cls) {
-  const div = document.getElementById('log');
-  const pre = document.createElement('pre');
-  pre.className = cls;
-  pre.textContent = `[${prefix}] ${text}`;
-  div.appendChild(pre);
-  div.scrollTop = div.scrollHeight;
-}
+// Enter 键支持
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter') return;
+  const code = document.getElementById('room-code').value.trim();
+  if (code.length === 6) handleJoin();
+  else handleCreate();
+});
 </script>
 </body>
 </html>

@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>游戏进行中 — 动物股东</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="/static/css/style.css">
+<style>
+body { font-family: 'Noto Sans SC', monospace; background: #1a2a1a; color: #eee; margin: 0; padding: 12px; font-size: 13px; }
+h3 { color: #f0c040; margin: 8px 0 4px; }
+input  { padding: 5px 8px; border-radius: 4px; border: 1px solid #555; background: #2a2a2a; color: #eee; width: 120px; }
+button { padding: 5px 12px; border-radius: 4px; border: none; background: #4a90d9; color: #fff; cursor: pointer; margin: 2px; }
+button:hover:not(:disabled) { background: #357abd; }
+button:disabled { background: #444; color: #888; cursor: default; }
+button.green { background: #3a9a4a; }
+button.red   { background: #9a3a3a; }
+.row  { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 4px 0; }
+.panel { background: #222; border: 1px solid #444; border-radius: 6px; padding: 8px 12px; margin: 6px 0; }
+#log  { background: #111; padding: 8px; border-radius: 6px; height: 220px; overflow-y: auto; font-size: 11px; }
+.recv { color: #7ec87e; } .sent { color: #7eb8e8; } .sys { color: #aaa; } .err { color: #e87e7e; }
+.card-btn { padding: 4px 8px; background: #554; border: 1px solid #776; border-radius: 3px; cursor: pointer; font-size: 14px; }
+.card-btn:hover { background: #776; }
+.card-btn.selected { background: #9a7a30; border-color: #f0c040; }
+.market-btn { padding: 4px 8px; background: #345; border: 1px solid #456; border-radius: 3px; cursor: pointer; font-size: 14px; }
+.market-btn:hover { background: #456; }
+.market-btn.blocked { background: #333; color: #666; cursor: not-allowed; }
+.market-btn.selected { background: #2a6a9a; border-color: #7eb8e8; }
+#turn-banner { padding: 6px 12px; border-radius: 4px; background: #3a5a2a; font-weight: bold; }
+#turn-banner.other { background: #3a3a3a; }
+table { border-collapse: collapse; width: 100%; }
+td, th { border: 1px solid #444; padding: 3px 6px; text-align: left; font-size: 12px; }
+th { background: #333; }
+.top-bar { display:flex; align-items:center; gap:12px; margin-bottom:8px; padding-bottom:8px; border-bottom:1px solid #333; }
+.status-tag { font-size:11px; padding:2px 8px; border-radius:10px; background:#2a4a2a; color:#7ec87e; }
+</style>
+</head>
+<body>
+
+<div class="top-bar">
+  <span style="font-size:18px; font-weight:900; color:#f0c040">🃏 动物股东</span>
+  <span class="status-tag" id="conn-status-tag">连接中…</span>
+  <span style="color:#888; font-size:12px">游戏调试视图 · 正式 UI 开发中</span>
+  <a href="/" style="margin-left:auto; color:#aaa; font-size:12px; text-decoration:none">← 返回首页</a>
+</div>
+
+<!-- 游戏内操作 -->
+<div id="game-panel">
+  <div id="turn-banner">连接中…</div>
+
+  <!-- 状态概览 -->
+  <div class="panel">
+    <strong>我的状态</strong>
+    <div class="row" id="my-coins-row">💰 —</div>
+    <div><strong>手牌：</strong><span id="my-hand-display" class="row"></span></div>
+    <div><strong>放置区：</strong><span id="my-area-display"></span></div>
+    <div><strong>反垄断：</strong><span id="my-antimonopoly">—</span></div>
+  </div>
+
+  <!-- 市场 -->
+  <div class="panel">
+    <strong>市场</strong>（牌堆剩余 <span id="deck-remaining">?</span> 张，本轮摸牌费用 <span id="draw-cost">?</span>）
+    <div class="row" id="market-display"></div>
+  </div>
+
+  <!-- 其他玩家 -->
+  <div class="panel">
+    <strong>其他玩家</strong>
+    <table id="other-players-table">
+      <tr><th>玩家</th><th>资金</th><th>手牌数</th><th>放置区</th><th>反垄断</th></tr>
+    </table>
+  </div>
+
+  <!-- Draw 阶段操作 -->
+  <div id="draw-actions" class="panel" style="display:none">
+    <h3>阶段一：获取卡牌</h3>
+    <div class="row">
+      <button id="btn-draw" onclick="drawCard()">摸牌（费用 <span id="btn-draw-cost">?</span>）</button>
+      <span style="color:#aaa">或点击市场卡取牌</span>
+    </div>
+  </div>
+
+  <!-- Play 阶段操作 -->
+  <div id="play-actions" class="panel" style="display:none">
+    <h3>阶段二：打出卡牌（点手牌选中后操作）</h3>
+    <div class="row">
+      <button id="btn-play-market" onclick="playToMarket()" disabled>打出到市场</button>
+      <button id="btn-play-area" onclick="playToArea()" disabled>放入放置区</button>
+    </div>
+    <div style="color:#aaa;font-size:11px" id="play-hint"></div>
+  </div>
+
+  <!-- 游戏结束展示 -->
+  <div id="game-end-panel" class="panel" style="display:none"></div>
+</div>
+
+<!-- 完整状态 JSON -->
+<div class="panel" style="margin-top:8px">
+  <strong>完整游戏状态（JSON）</strong>
+  <pre id="state-json" style="font-size:10px; max-height:200px; overflow:auto; color:#aaa; margin-top:4px;">等待服务器推送…</pre>
+</div>
+
+<!-- 消息日志 -->
+<h3>消息日志</h3>
+<div id="log"></div>
+
+<script src="/static/js/websocket.js"></script>
+<script>
+// ─── 状态 ────────────────────────────────────────────────────────────────
+let myId = null;
+let myRoomCode = null;
+let gameState = null;
+let selectedHandIndex = -1;
+let selectedMarketIndex = -1;
+let yourTurnInfo = null;
+
+// ─── 初始化 ───────────────────────────────────────────────────────────────
+(function init() {
+  const params = new URLSearchParams(location.search);
+  myRoomCode = params.get('code') || sessionStorage.getItem('room_code');
+  const name = sessionStorage.getItem('player_name');
+
+  if (!myRoomCode || !name) {
+    log('系统', '缺少房间信息，请从首页重新进入', 'err');
+    return;
+  }
+
+  setStatusTag('连接中…', '#aaa');
+  log('系统', `重连至房间 ${myRoomCode}，玩家：${name}`, 'sys');
+
+  gameWS.on('room_update',         handleRoomUpdate);
+  gameWS.on('game_start',          handleGameStart);
+  gameWS.on('game_state',          (msg) => handleGameState(msg.state));
+  gameWS.on('your_turn',           handleYourTurn);
+  gameWS.on('action_result',       (msg) => { if (!msg.success) log('操作', msg.message, 'err'); });
+  gameWS.on('game_end',            handleGameEnd);
+  gameWS.on('game_aborted',        (msg) => { log('系统', `游戏终止：${msg.reason}`, 'err'); });
+  gameWS.on('player_disconnected', (msg) => { log('系统', `玩家 ${msg.player_name} 断线`, 'err'); });
+  gameWS.on('error',               (msg) => { log('错误', msg.message, 'err'); });
+
+  gameWS.connect();
+  gameWS.on('open', () => {
+    setStatusTag('已连接', '#7ec87e');
+    log('系统', '已连接', 'sys');
+    gameWS.send('join_room', { room_code: myRoomCode, player_name: name });
+  });
+})();
+
+// ─── 消息处理 ─────────────────────────────────────────────────────────────
+function handleRoomUpdate(msg) {
+  myRoomCode = msg.room_code;
+  const me = msg.players.find(p => p.name === sessionStorage.getItem('player_name'));
+  if (me && !myId) myId = me.id;
+  log('房间', `玩家列表更新：${msg.players.map(p=>p.name).join(', ')}`, 'sys');
+}
+
+function handleGameStart(msg) {
+  log('系统', '游戏开始', 'sys');
+  handleGameState(msg.game_state);
+}
+
+function handleGameState(state) {
+  if (!myId && state) {
+    const name = sessionStorage.getItem('player_name');
+    const me = state.players.find(p => p.name === name);
+    if (me) myId = me.id;
+  }
+  gameState = state;
+  if (state) {
+    document.getElementById('state-json').textContent = JSON.stringify(state, null, 2);
+    renderState(state);
+  }
+  log('状态', '游戏状态已更新', 'recv');
+}
+
+function handleYourTurn(msg) {
+  yourTurnInfo = msg;
+  selectedHandIndex = -1;
+  selectedMarketIndex = -1;
+  renderTurnUI(msg);
+  log('回合', `轮到你：${msg.phase === 'draw' ? '获取卡牌' : '打出卡牌'}，摸牌费用：${msg.draw_cost}`, 'sys');
+}
+
+// ─── 渲染 ─────────────────────────────────────────────────────────────────
+function renderState(state) {
+  const me = state.players.find(p => p.id === myId);
+  if (!me) return;
+
+  document.getElementById('my-coins-row').innerHTML = `💰 ${me.coins} 资金`;
+  document.getElementById('my-antimonopoly').textContent = (me.anti_monopoly || []).join(' ') || '无';
+
+  // 手牌
+  const handDiv = document.getElementById('my-hand-display');
+  handDiv.innerHTML = '';
+  (me.hand || []).forEach((card, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'card-btn' + (i === selectedHandIndex ? ' selected' : '');
+    btn.textContent = `[${i}] ${card}`;
+    btn.onclick = () => selectHand(i);
+    handDiv.appendChild(btn);
+  });
+
+  document.getElementById('my-area-display').textContent =
+    Object.entries(me.area || {}).filter(([,v]) => v > 0).map(([k,v]) => `${k}×${v}`).join('  ') || '（空）';
+
+  document.getElementById('deck-remaining').textContent = state.deck_remaining;
+  if (yourTurnInfo) {
+    document.getElementById('draw-cost').textContent = yourTurnInfo.draw_cost ?? '?';
+    document.getElementById('btn-draw-cost').textContent = yourTurnInfo.draw_cost ?? '?';
+    document.getElementById('btn-draw').disabled =
+      !(yourTurnInfo.phase === 'draw' && yourTurnInfo.can_draw && state.current_player_id === myId);
+  }
+
+  renderMarket(state);
+
+  // 其他玩家
+  const tbody = document.querySelector('#other-players-table');
+  while (tbody.rows.length > 1) tbody.deleteRow(1);
+  state.players.filter(p => p.id !== myId).forEach(p => {
+    const tr = tbody.insertRow();
+    const isCurrent = p.id === state.current_player_id;
+    tr.style.background = isCurrent ? '#2a3a2a' : '';
+    tr.innerHTML = `<td>${isCurrent ? '▶' : ''} ${p.name}</td>
+      <td>💰${p.coins}</td><td>${p.hand}</td>
+      <td>${Object.entries(p.area||{}).filter(([,v])=>v>0).map(([k,v])=>`${k}×${v}`).join(' ')||'—'}</td>
+      <td>${(p.anti_monopoly||[]).join(' ')||'—'}</td>`;
+  });
+
+  // 回合横幅
+  const isMyTurn = state.current_player_id === myId;
+  const banner = document.getElementById('turn-banner');
+  if (state.phase === 'ended') {
+    banner.textContent = '🏁 游戏结束';
+    banner.className = 'other';
+    document.getElementById('draw-actions').style.display = 'none';
+    document.getElementById('play-actions').style.display = 'none';
+  } else {
+    banner.textContent = isMyTurn
+      ? `▶ 轮到你 — ${state.turn_phase === 'draw' ? '阶段一：获取卡牌' : '阶段二：打出卡牌'}`
+      : `等待 ${state.current_player_name} 操作…（${state.turn_phase}）`;
+    banner.className = isMyTurn ? '' : 'other';
+  }
+}
+
+function renderMarket(state) {
+  const div = document.getElementById('market-display');
+  div.innerHTML = '';
+  if (!state.market || state.market.length === 0) {
+    div.textContent = '（市场为空）';
+    return;
+  }
+  const blocked = yourTurnInfo?.blocked_market || [];
+  state.market.forEach((slot, i) => {
+    const isBlocked = blocked.includes(i);
+    const isMyTurn = state.current_player_id === myId && yourTurnInfo?.phase === 'draw';
+    const btn = document.createElement('button');
+    btn.className = 'market-btn' + (isBlocked ? ' blocked' : '') + (i === selectedMarketIndex ? ' selected' : '');
+    btn.textContent = `[${i}] ${slot.card} +${slot.coins}💰`;
+    btn.title = isBlocked ? '反垄断标记阻止' : `取牌（获得 ${slot.coins} 资金）`;
+    btn.onclick = () => { if (isBlocked || !isMyTurn) return; selectMarket(i); };
+    div.appendChild(btn);
+  });
+}
+
+function renderTurnUI(msg) {
+  const isMyTurn = gameState && gameState.current_player_id === myId;
+  document.getElementById('draw-actions').style.display = isMyTurn && msg.phase === 'draw' ? '' : 'none';
+  document.getElementById('play-actions').style.display = isMyTurn && msg.phase === 'play' ? '' : 'none';
+
+  if (msg.phase === 'draw') {
+    document.getElementById('btn-draw-cost').textContent = msg.draw_cost;
+    document.getElementById('btn-draw').disabled = !msg.can_draw;
+  }
+  if (msg.phase === 'play') {
+    const blocked = msg.blocked_play_to_market || [];
+    document.getElementById('play-hint').textContent =
+      blocked.length ? `手牌索引 ${blocked.join(',')} 不可打回市场（规则限制）` : '';
+    updatePlayButtons();
+  }
+  if (gameState) renderMarket(gameState);
+}
+
+function selectHand(i) {
+  selectedHandIndex = (selectedHandIndex === i) ? -1 : i;
+  if (gameState) renderState(gameState);
+  updatePlayButtons();
+}
+
+function selectMarket(i) {
+  if (!yourTurnInfo || yourTurnInfo.phase !== 'draw') return;
+  selectedMarketIndex = (selectedMarketIndex === i) ? -1 : i;
+  if (gameState) renderMarket(gameState);
+  if (selectedMarketIndex !== -1) pickMarket(selectedMarketIndex);
+}
+
+function updatePlayButtons() {
+  const hasSel   = selectedHandIndex >= 0;
+  const isMyTurn = gameState && gameState.current_player_id === myId;
+  const inPlay   = yourTurnInfo && yourTurnInfo.phase === 'play';
+  const blocked  = yourTurnInfo?.blocked_play_to_market || [];
+
+  document.getElementById('btn-play-market').disabled =
+    !(hasSel && isMyTurn && inPlay) || blocked.includes(selectedHandIndex);
+  document.getElementById('btn-play-area').disabled =
+    !(hasSel && isMyTurn && inPlay);
+}
+
+// ─── 游戏动作 ─────────────────────────────────────────────────────────────
+function drawCard()    { gameWS.send('draw_card'); }
+function pickMarket(i) { gameWS.send('pick_market', { card_index: i }); selectedMarketIndex = -1; }
+function playToMarket() {
+  if (selectedHandIndex < 0) return;
+  gameWS.send('play_to_market', { hand_index: selectedHandIndex });
+  selectedHandIndex = -1;
+}
+function playToArea() {
+  if (selectedHandIndex < 0) return;
+  gameWS.send('play_to_area', { hand_index: selectedHandIndex });
+  selectedHandIndex = -1;
+}
+
+// ─── 游戏结束 ─────────────────────────────────────────────────────────────
+function handleGameEnd(msg) {
+  const names = msg.player_names || {};
+  const panel = document.getElementById('game-end-panel');
+  panel.style.display = 'block';
+
+  let html = `<h3 style="color:#f0c040;font-size:18px;margin-bottom:8px">🏆 游戏结束！获胜者：${msg.winner_name}</h3>`;
+  html += '<table><tr><th>玩家</th><th>最终资金</th></tr>';
+  Object.entries(msg.scores || {}).forEach(([pid, coins]) => {
+    html += `<tr><td>${names[pid] || pid}</td><td>💰${coins}</td></tr>`;
+  });
+  html += '</table>';
+  html += '<br><strong>手牌公开：</strong><br>';
+  Object.entries(msg.revealed_hands || {}).forEach(([pid, hand]) => {
+    html += `${names[pid] || pid}：${hand.join(' ')}<br>`;
+  });
+  html += `<br><a href="/" style="color:#f0c040">← 返回首页</a>`;
+  panel.innerHTML = html;
+
+  document.getElementById('turn-banner').innerHTML = '🏁 游戏结束';
+  document.getElementById('turn-banner').className = 'other';
+  document.getElementById('draw-actions').style.display = 'none';
+  document.getElementById('play-actions').style.display = 'none';
+}
+
+// ─── 辅助 ─────────────────────────────────────────────────────────────────
+function setStatusTag(text, color) {
+  const el = document.getElementById('conn-status-tag');
+  el.textContent = text;
+  el.style.color = color;
+}
+
+function log(prefix, text, cls) {
+  const div = document.getElementById('log');
+  const pre = document.createElement('pre');
+  pre.className = cls;
+  pre.textContent = `[${prefix}] ${text}`;
+  div.appendChild(pre);
+  div.scrollTop = div.scrollHeight;
+}
+</script>
+</body>
+</html>
