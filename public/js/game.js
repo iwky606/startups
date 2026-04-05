@@ -36,7 +36,6 @@ let selHndIdx = -1;      // 被选中的手牌索引，-1=无
   gameWS.on('your_turn',           _onYourTurn);
   gameWS.on('action_result',       (m) => { if (!m.success) showToast(m.message, 'error'); });
   gameWS.on('game_end',            _onGameEnd);
-  gameWS.on('lobby_ready',        (m) => { window.location.href = `/room?code=${m.room_code}`; });
   gameWS.on('game_aborted',        (m) => showToast('游戏终止：' + m.reason, 'error', 5000));
   gameWS.on('player_disconnected', (m) => showToast('玩家 ' + m.player_name + ' 断线', 'error'));
   gameWS.on('error',               (m) => showToast(m.message, 'error'));
@@ -548,9 +547,7 @@ function _renderGameEnd(msg) {
 }
 
 function returnToLobby(code) {
-  gameWS.send('return_to_lobby');
-  // lobby_ready 广播收到后会自动跳转；如果自己没收到（已断线），手动跳转
-  setTimeout(() => { window.location.href = `/room?code=${code}`; }, 600);
+  window.location.href = `/room?code=${code}`;
 }
 
 // ════════════════════════════════════════════════════════════════════════

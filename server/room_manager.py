@@ -167,18 +167,19 @@ class RoomManager:
         new_ws: WebSocket,
     ) -> str:
         """
-        游戏进行中重连。找到同名玩家，更新其 WebSocket 引用，返回原 player_id。
-        用于页面跳转（room→game）导致的短暂断线后重连。
+        游戏进行中重连（非结束阶段）。找到同名玩家，更新其 WebSocket，返回原 player_id。
         """
         room = self.rooms.get(room_code)
         if room is None:
             raise ValueError(f"房间 {room_code} 不存在")
         if not room.is_started:
             raise ValueError("游戏尚未开始")
+        if room.game_state.phase == "ended":
+            raise ValueError("游戏已结束，请回到大厅")
         for pid, info in room.players.items():
             if info.name == player_name:
                 info.ws = new_ws
-                self.player_room_map[pid] = room_code   # 重建映射
+                self.player_room_map[pid] = room_code
                 return pid
         raise ValueError(f"玩家「{player_name}」不在此游戏中")
 
@@ -220,19 +221,30 @@ class RoomManager:
         new_ws: WebSocket,
     ) -> str:
         """
-        大厅重置后重连：找到同名玩家（ws=None），更新 ws，返回原 player_id。
+        游戏结束后回到大厅：找到同名玩家（ws=None），更新 ws，返回原 player_id。
+        第一个回来的玩家触发房间重置（清除 game_state，重置 is_ready）。
+        后续玩家直接补位（game_state 已为 None）。
         """
         room = self.rooms.get(room_code)
         if room is None:
             raise ValueError(f"房间 {room_code} 不存在")
-        if room.is_started:
-            raise ValueError("游戏尚未重置")
+
+        # 允许条件：游戏已结束，或 game_state 已被重置（为 None）
+        if room.game_state is not None and room.game_state.phase != "ended":
+            raise ValueError("游戏仍在进行中")
+
         for pid, info in room.players.items():
             if info.name == player_name and info.ws is None:
+                # 第一个回来时重置房间状态
+                if room.game_state is not None:
+                    room.game_state = None
+                    for p in room.players.values():
+                        p.is_ready = False
                 info.ws = new_ws
                 self.player_room_map[pid] = room_code
                 return pid
-        raise ValueError(f"玩家「{player_name}」不在此房间的等待列表中")
+
+        raise ValueError(f"玩家「{player_name}」不在此房间中")
 
     def abort_room(self, room_code: str):
         """强制删除房间，清理所有玩家的映射（断线/游戏中止使用）"""

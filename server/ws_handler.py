@@ -312,24 +312,6 @@ async def handle_play_to_area(player_id: str, data: dict, ws: WebSocket):
     await _after_play(player_id, room)
 
 
-# ─── 回到大厅 ─────────────────────────────────────────────────────────
-
-async def handle_return_to_lobby(player_id: str):
-    room = room_manager.get_player_room(player_id)
-    if room is None:
-        return
-    gs = room.game_state
-    if gs is None or gs.phase != "ended":
-        return  # 仅在游戏结束后允许
-
-    # 先广播（ws 还在线），再重置（ws 置 None）
-    await broadcast_to_room(room, {
-        "type": "lobby_ready",
-        "room_code": room.room_code,
-    })
-    room_manager.reset_room(room.room_code)
-
-
 # ─── 断线处理 ─────────────────────────────────────────────────────────
 
 async def handle_disconnect(player_id: str):
@@ -338,12 +320,11 @@ async def handle_disconnect(player_id: str):
         return
 
     gs = room.game_state
-    if gs is not None and gs.phase not in ("ended",):
-        # 游戏进行中断线：保留房间，等待玩家重连（页面跳转会触发短暂断线）
-        # 仅将 WS 置 None，不 abort 也不通知其他玩家
+    if gs is not None:
+        # 游戏进行中或已结束：保留玩家记录，等待重连/回大厅
         room_manager.mark_player_disconnected(player_id)
     else:
-        # 等待阶段或游戏已结束：正常移除
+        # 等待阶段：正常移除
         remaining_room = room_manager.leave_room(player_id)
         if remaining_room is not None:
             await broadcast_room_update(remaining_room)
@@ -385,8 +366,6 @@ async def handle_connection(player_id: str, ws: WebSocket):
                 await handle_play_to_market(effective_id, data, ws)
             elif msg_type == "play_to_area":
                 await handle_play_to_area(effective_id, data, ws)
-            elif msg_type == "return_to_lobby":
-                await handle_return_to_lobby(effective_id)
             else:
                 await send_to_player(ws, {"type": "error", "message": f"未知消息类型：{msg_type}"})
 
