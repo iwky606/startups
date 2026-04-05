@@ -54,6 +54,21 @@
     创建房间
   </button>
 
+  <!-- 开局移除张数 -->
+  <div style="padding:10px 12px;background:rgba(0,0,0,0.2);border-radius:10px;display:flex;align-items:center;gap:10px;margin-top:-8px">
+    <label style="font-size:13px;color:rgba(255,255,255,0.65);white-space:nowrap;flex:1">开局随机移除</label>
+    <input
+      id="remove-count"
+      type="number"
+      class="input-field"
+      value="5"
+      min="0"
+      max="40"
+      style="width:68px;padding:6px 10px;font-size:15px;font-weight:700;text-align:center"
+    >
+    <span style="font-size:12px;color:rgba(255,255,255,0.4);white-space:nowrap">张牌</span>
+  </div>
+
   <!-- 分割线 -->
   <div class="divider">或者</div>
 
@@ -124,8 +139,10 @@ function clearFieldError(field) {
 function handleCreate() {
   const name = validateNickname();
   if (!name) return;
+  const removeCount = parseInt(document.getElementById('remove-count').value, 10);
   sessionStorage.setItem('player_name', name);
   sessionStorage.setItem('room_action', 'create');
+  sessionStorage.setItem('remove_count', isNaN(removeCount) ? '5' : String(Math.max(0, Math.min(40, removeCount))));
   window.location.href = '/room?action=create';
 }
 

@@ -6,11 +6,12 @@ from .deck import Deck, CARD_CONFIG
 
 
 class GameState:
-    def __init__(self, player_ids: list[str], player_names: dict[str, str]):
+    def __init__(self, player_ids: list[str], player_names: dict[str, str], remove_count: int = 5):
         """
         初始化游戏状态。
         player_ids: 玩家ID列表（3-7人）
         player_names: {player_id: 昵称}
+        remove_count: 开局随机移除的牌数（默认5）
         """
         if not (3 <= len(player_ids) <= 7):
             raise ValueError(f"游戏人数须为3-7人，当前 {len(player_ids)} 人")
@@ -18,8 +19,8 @@ class GameState:
         self._player_ids: list[str] = list(player_ids)
         self._player_names: dict[str, str] = dict(player_names)
 
-        # 牌堆初始化，移除5张
-        self._deck = Deck(remove_count=5)
+        # 牌堆初始化
+        self._deck = Deck(remove_count=remove_count)
 
         # 玩家状态
         self._hands: dict[str, list[str]] = {}       # 手牌（仅自己可见）

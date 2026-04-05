@@ -485,10 +485,10 @@ html, body {
   border: 1px solid rgba(255,255,255,0.05);
   border-radius: 14px;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
   padding: 10px;
-  overflow: hidden;
+  overflow: hidden;   /* grid 内部自己滚动 */
 }
 .area-self {
   grid-area: self;
@@ -589,18 +589,23 @@ html, body {
 }
 .ac-emoji { font-size: 11px; line-height: 1; }
 .ac-count { font-size: 9px; font-weight: 700; color: rgba(255,255,255,0.82); line-height: 1.1; }
+.ac-total { font-weight: 400; color: rgba(255,255,255,0.35); }
 
 /* 自己区域放置格更大 */
 .self-area-grid .area-cell { min-width: 34px; }
 .self-area-grid .ac-emoji  { font-size: 14px; }
 .self-area-grid .ac-count  { font-size: 10px; }
+.self-area-grid .ac-total  { font-size: 9px; }
 
-/* ── 中央市场栅格 3×2 ────────────────────────────────────────────────── */
+/* ── 中央市场栅格 3列，行数自动扩展，可纵向滚动 ─────────────────────── */
 .market-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(74px, 106px));
-  grid-template-rows: repeat(2, minmax(88px, 138px));
+  grid-auto-rows: minmax(88px, 138px);
   gap: 8px;
+  overflow-y: auto;
+  max-height: 100%;
+  padding-right: 2px;   /* 防止滚动条压住卡牌 */
 }
 
 /* 市场格基础样式 */
@@ -725,8 +730,11 @@ html, body {
   background: var(--color-card);
   border-radius: 10px;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 2px;
+  position: relative;
   box-shadow: 0 3px 10px rgba(0,0,0,0.38);
   border: 2px solid transparent;
   cursor: pointer;
@@ -737,7 +745,14 @@ html, body {
   border-color: var(--color-primary);
   box-shadow: 0 8px 18px rgba(0,0,0,0.45);
 }
-.hcard-emoji { font-size: 32px; }
+.hcard-total {
+  font-size: 11px;
+  font-weight: 700;
+  color: rgba(0,0,0,0.35);
+  letter-spacing: 0.02em;
+  line-height: 1;
+}
+.hcard-emoji { font-size: 32px; line-height: 1; }
 
 /* 自己面板 */
 .self-panel {

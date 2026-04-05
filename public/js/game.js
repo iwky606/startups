@@ -2,6 +2,8 @@
 
 // ── 常量 ────────────────────────────────────────────────────────────────
 const ANIMALS = ['🦒', '🐶', '🦢', '🐙', '🦛', '🐘'];
+// 各动物公司总牌数（用于 UI 展示 持有/总数）
+const ANIMAL_TOTAL = { '🦒': 5, '🐶': 6, '🦢': 7, '🐙': 8, '🦛': 9, '🐘': 10 };
 const SLOT_ORDER = [1, 2, 5, 6, 3, 4];   // 对手槽位填充顺序
 const AVATAR_COLORS = ['#4a7c41','#7b42a8','#a84242','#427ba8','#a88442','#428078','#a87242','#6a42a8'];
 
@@ -204,12 +206,14 @@ function _buildOpponentHTML(player, state, isTop, isLeft) {
 function _buildAreaGrid(area, antiMonopoly) {
   const cells = ANIMALS.map(animal => {
     const count   = area[animal] || 0;
+    const total   = ANIMAL_TOTAL[animal];
     const hasAnti = antiMonopoly.includes(animal);
     const cls = ['area-cell', count > 0 ? 'area-has' : 'area-empty', hasAnti ? 'area-anti' : '']
       .filter(Boolean).join(' ');
-    return `<div class="${cls}" title="${animal} ×${count}${hasAnti ? ' ★反垄断' : ''}">
+    const tip = `${animal} ${count}/${total}${hasAnti ? ' ★反垄断' : ''}`;
+    return `<div class="${cls}" title="${tip}">
       <span class="ac-emoji">${animal}</span>
-      <span class="ac-count">${count}</span>
+      <span class="ac-count">${count}<span class="ac-total">/${total}</span></span>
     </div>`;
   }).join('');
   return `<div class="area-grid">${cells}</div>`;
@@ -226,8 +230,6 @@ function _renderMarket(state) {
   const canDraw    = yourTurnInfo?.can_draw !== false;
   const blocked    = yourTurnInfo ? (yourTurnInfo.blocked_market || []) : [];
   const mktCards   = state.market || [];
-  const showMore   = mktCards.length >= 5;
-  const visible    = showMore ? mktCards.slice(0, 4) : mktCards;
 
   // 牌堆：我的摸牌回合且资金不足时显示 disabled
   const deckDisabled = isMyDraw && !canDraw;
@@ -243,7 +245,8 @@ function _renderMarket(state) {
     <div class="mslot-foot deck-cost">−${drawCost} 💰</div>
   </div>`;
 
-  visible.forEach((slot, i) => {
+  // 展示全部市场卡（不截断）
+  mktCards.forEach((slot, i) => {
     const isBlocked = blocked.includes(i);
     const cls = ['mslot market-card-slot card-selectable', isBlocked ? 'card-disabled' : '']
       .filter(Boolean).join(' ');
@@ -254,17 +257,14 @@ function _renderMarket(state) {
     </div>`;
   });
 
-  if (showMore) {
-    const extra = mktCards.length - 4;
-    html += `<div class="mslot more-slot" id="market-more"
-                  title="更多市场卡牌（共 ${mktCards.length} 张）">
-      <span class="more-dots">···</span>
-      <div class="mslot-foot" style="font-size:10px;color:rgba(255,255,255,0.5)">+${extra}张</div>
-    </div>`;
+  // 补空格让末行对齐（3列）
+  const total = 1 + mktCards.length;
+  const remainder = total % 3;
+  if (remainder !== 0) {
+    for (let i = 0; i < 3 - remainder; i++) {
+      html += `<div class="mslot empty-slot"></div>`;
+    }
   }
-
-  const used = 1 + visible.length + (showMore ? 1 : 0);
-  for (let i = used; i < 6; i++) html += `<div class="mslot empty-slot"></div>`;
 
   grid.innerHTML = html;
   _applySel();   // 恢复选中视觉
@@ -309,6 +309,7 @@ function _renderHand(state) {
     // 非出牌回合时手牌不可选
     const selCls = inPlay ? 'card-selectable' : '';
     return `<div class="hand-card card ${selCls}" data-hand-index="${i}">
+      <span class="hcard-total">×${ANIMAL_TOTAL[card] ?? ''}</span>
       <span class="hcard-emoji">${card}</span>
     </div>`;
   }).join('');

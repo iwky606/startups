@@ -111,7 +111,9 @@ async def handle_create_room(player_id: str, data: dict, ws: WebSocket):
         await send_to_player(ws, {"type": "error", "message": "昵称不能为空"})
         return
 
-    room = room_manager.create_room(player_id, player_name, ws)
+    remove_count = int(data.get("remove_count", 5))
+    remove_count = max(0, min(remove_count, 40))   # 限制在合理范围
+    room = room_manager.create_room(player_id, player_name, ws, remove_count=remove_count)
     await send_to_player(ws, {
         "type": "room_created",
         "room_code": room.room_code,

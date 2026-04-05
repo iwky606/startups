@@ -32,6 +32,7 @@ class Room:
     game_state: Optional[GameState] = None
     max_players: int = 7
     min_players: int = 3
+    remove_count: int = 5  # 开局移除张数（房主创建时设定）
 
     @property
     def is_started(self) -> bool:
@@ -63,10 +64,10 @@ class RoomManager:
             code = _generate_room_code()
         return code
 
-    def create_room(self, player_id: str, player_name: str, ws: WebSocket) -> Room:
+    def create_room(self, player_id: str, player_name: str, ws: WebSocket, remove_count: int = 5) -> Room:
         """创建房间，创建者自动加入并成为房主"""
         code = self._unique_code()
-        room = Room(room_code=code, host_id=player_id)
+        room = Room(room_code=code, host_id=player_id, remove_count=remove_count)
         room.players[player_id] = PlayerInfo(name=player_name, ws=ws)
         self.rooms[code] = room
         self.player_room_map[player_id] = code
@@ -155,7 +156,7 @@ class RoomManager:
 
         player_ids = list(room.players.keys())
         player_names = {pid: info.name for pid, info in room.players.items()}
-        room.game_state = GameState(player_ids, player_names)
+        room.game_state = GameState(player_ids, player_names, remove_count=room.remove_count)
         return room
 
 

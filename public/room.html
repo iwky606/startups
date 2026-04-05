@@ -129,7 +129,8 @@ let isReady  = false;
   gameWS.on('open', () => {
     if (action === 'create') {
       setConnectingText('正在创建房间…');
-      gameWS.send('create_room', { player_name: myName });
+      const removeCount = parseInt(sessionStorage.getItem('remove_count') || '5', 10);
+      gameWS.send('create_room', { player_name: myName, remove_count: removeCount });
     } else if (code) {
       setConnectingText('正在加入房间…');
       gameWS.send('join_room', { room_code: code.toUpperCase(), player_name: myName });
