@@ -670,10 +670,13 @@ html, body {
 .mcard-body {
   flex: 1;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 2px;
 }
-.mcard-emoji  { font-size: 38px; }
+.mcard-total  { font-size: 11px; font-weight: 700; color: rgba(0,0,0,0.35); line-height: 1; }
+.mcard-emoji  { font-size: 36px; line-height: 1; }
 .mcard-coins  { background: #d1fae5; color: #065f46; }
 
 /* 空槽位 */
@@ -1022,7 +1025,8 @@ html, body {
     grid-auto-rows: minmax(72px, 110px);
     gap: 6px;
   }
-  .mcard-emoji { font-size: 30px; }
+  .mcard-emoji { font-size: 28px; }
+  .mcard-total { font-size: 10px; }
 
   /* ── 自己区域全宽，紧凑 ───────────────────────────────────────────────── */
   .area-self {

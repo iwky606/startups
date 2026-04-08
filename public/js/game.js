@@ -252,7 +252,10 @@ function _renderMarket(state) {
       .filter(Boolean).join(' ');
     const tip = isBlocked ? '反垄断标记：不可取此牌' : `取牌 · 获得 ${slot.coins} 💰`;
     html += `<div class="${cls}" data-market-index="${i}" title="${tip}">
-      <div class="mcard-body"><span class="mcard-emoji">${slot.card}</span></div>
+      <div class="mcard-body">
+        <span class="mcard-total">×${ANIMAL_TOTAL[slot.card] ?? ''}</span>
+        <span class="mcard-emoji">${slot.card}</span>
+      </div>
       <div class="mslot-foot mcard-coins">+${slot.coins} 💰</div>
     </div>`;
   });
