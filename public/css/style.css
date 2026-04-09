@@ -996,21 +996,28 @@ html, body {
   /* 每个对手槽固定宽度 */
   .opp-slot {
     flex: 0 0 auto;
-    width: 105px;
+    width: 110px;
   }
 
-  /* 对手面板：去掉最小宽度限制，统一紧凑样式 */
+  /* 对手面板：统一纵向紧凑布局 */
   .opp-panel {
-    padding: 6px 7px;
+    padding: 5px 6px;
+    gap: 4px;
   }
+  /* opp-top 在移动端改为纵向（与 opp-side 一致） */
   .opp-top {
     flex-direction: column;
     min-width: unset;
     max-width: unset;
+    gap: 4px;
   }
   .opp-top .opp-header { flex-direction: row; }
-  /* 移动端隐藏对手放置区（节省空间） */
-  .opp-panel .area-grid-wrap { display: none; }
+  /* 移动端 area-grid-wrap 保留，但让布局更紧凑 */
+  .opp-panel .area-grid { gap: 1px; }
+  .opp-panel .area-cell { min-width: 0; padding: 1px; }
+  .opp-panel .ac-emoji  { font-size: 10px; }
+  .opp-panel .ac-count  { font-size: 8px; }
+  .opp-panel .ac-total  { font-size: 7px; }
 
   /* ── 市场区全宽 ──────────────────────────────────────────────────────── */
   .area-market {
