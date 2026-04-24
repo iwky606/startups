@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>房间等待 — 初创公司</title>
+<title>房间等待 - 初创公司</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <link rel="stylesheet" href="/static/css/style.css">
 <style>
@@ -21,131 +21,124 @@
   100% { box-shadow: 0 0 0 0 rgba(74,222,128,0); }
 }
 .player-slot.ready-pulse { animation: pulse-ring 2s ease-out infinite; }
-
-/* 连接中遮罩 */
 #connecting-overlay {
-  position: fixed; inset: 0;
+  position: fixed;
+  inset: 0;
   background: rgba(0,0,0,0.6);
-  display: flex; flex-direction: column;
-  align-items: center; justify-content: center;
-  gap: 16px; z-index: 50;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  z-index: 50;
 }
 </style>
 </head>
 <body class="felt-bg min-h-screen flex flex-col">
 
-<!-- Toast 容器 -->
 <div id="toast-container" class="toast-container"></div>
 
-<!-- 连接中遮罩 -->
 <div id="connecting-overlay">
   <span class="spinner" style="width:32px;height:32px;border-width:3px"></span>
-  <p style="color:#fff;font-size:16px" id="connecting-text">连接服务器中…</p>
+  <p style="color:#fff;font-size:16px" id="connecting-text">连接服务器中...</p>
 </div>
 
-<!-- 顶栏 -->
 <header class="flex items-center justify-between px-6 py-4" style="background:rgba(0,0,0,0.2);">
-  <a href="/" class="btn btn-sm btn-secondary" onclick="handleLeave(event)">← 返回首页</a>
+  <a href="/" class="btn btn-sm btn-secondary" onclick="handleLeave(event)">返回首页</a>
   <span class="font-bold text-white/80 text-sm tracking-wider">初创公司</span>
   <div style="width:80px"></div>
 </header>
 
-<!-- 主体 -->
 <main class="flex-1 flex flex-col items-center justify-center p-4 gap-6">
-
-  <!-- 房间码面板 -->
   <div class="panel-glass p-6 w-full max-w-md text-center flex flex-col gap-4">
     <p class="text-white/60 text-sm font-medium tracking-wider uppercase">房间码</p>
-    <div id="room-code-display" class="room-code-display">——————</div>
+    <div id="room-code-display" class="room-code-display">------</div>
     <div class="flex gap-3 justify-center flex-wrap">
       <button class="btn btn-sm btn-ghost" id="btn-copy-code" onclick="copyCode()">复制房间码</button>
       <button class="btn btn-sm btn-ghost" id="btn-copy-link" onclick="copyLink()">复制邀请链接</button>
     </div>
   </div>
 
-  <!-- 玩家列表面板 -->
   <div class="panel-glass p-6 w-full max-w-md flex flex-col gap-4">
     <div class="flex items-center justify-between">
-      <h2 class="font-bold text-white text-base">等待玩家加入…</h2>
+      <h2 class="font-bold text-white text-base">等待玩家加入</h2>
       <span id="player-count" class="text-white/50 text-sm">0 / 7</span>
     </div>
     <div id="player-grid"></div>
-    <p class="text-center text-xs text-white/35 pt-1">最少 3 人 · 最多 7 人</p>
+    <p class="text-center text-xs text-white/35 pt-1">至少 3 人 · 最多 7 人</p>
   </div>
 
-  <!-- 操作按钮 -->
   <div class="flex flex-col gap-3 w-full max-w-md">
     <button id="btn-ready" class="btn btn-primary btn-lg w-full" onclick="toggleReady()" style="display:none">
       准备
     </button>
-    <div id="host-area" style="display:none" class="flex flex-col gap-2">
+    <div id="host-area" style="display:none" class="flex flex-col gap-3">
+      <div class="panel-glass p-4 flex items-center justify-between gap-3">
+        <div>
+          <div class="text-white text-sm font-semibold">人机管理</div>
+          <div id="bot-summary" class="text-xs text-white/45">当前 0 名人机</div>
+        </div>
+        <div class="flex gap-2">
+          <button id="btn-remove-bot" class="btn btn-sm btn-secondary" onclick="removeBot()">- AI</button>
+          <button id="btn-add-bot" class="btn btn-sm btn-primary" onclick="addBot()">+ AI</button>
+        </div>
+      </div>
       <button id="btn-start" class="btn btn-primary btn-lg w-full" onclick="startGame()" disabled>
         开始游戏
       </button>
       <p id="start-hint" class="text-center text-xs text-white/50">至少需要 3 位玩家才能开始</p>
     </div>
   </div>
-
 </main>
 
 <script src="/static/js/websocket.js"></script>
 <script>
-// ── 页面状态 ─────────────────────────────────────────────────────────────
 let roomCode = null;
-let myId     = null;
-let myName   = null;
-let players  = [];
-let isHost   = false;
-let isReady  = false;
+let myId = null;
+let myName = null;
+let players = [];
+let isHost = false;
+let isReady = false;
 
-// ── 初始化 ───────────────────────────────────────────────────────────────
 (function init() {
   const params = new URLSearchParams(location.search);
-  const action = params.get('action');           // 'create'
-  const code   = params.get('code');             // join 时的房间码
-  myName       = sessionStorage.getItem('player_name');
+  const action = params.get('action');
+  const code = params.get('code');
+  myName = sessionStorage.getItem('player_name');
 
   if (!myName) {
-    // 缺少昵称，退回首页
     window.location.href = '/';
     return;
   }
 
-  // 提前显示已知房间码（join 流程）
   if (code) {
     roomCode = code.toUpperCase();
     document.getElementById('room-code-display').textContent = roomCode;
   }
 
-  // 注册消息处理器
   gameWS.on('room_created', handleRoomCreated);
-  gameWS.on('room_update',  handleRoomUpdate);
-  gameWS.on('game_start',   handleGameStart);
-  gameWS.on('error',        handleError);
+  gameWS.on('room_update', handleRoomUpdate);
+  gameWS.on('game_start', handleGameStart);
+  gameWS.on('error', handleError);
 
-  // 连接并创建/加入
-  setConnectingText('连接服务器中…');
+  setConnectingText('连接服务器中...');
   gameWS.connect();
   gameWS.on('open', () => {
     if (action === 'create') {
-      setConnectingText('正在创建房间…');
+      setConnectingText('正在创建房间...');
       const removeCount = parseInt(sessionStorage.getItem('remove_count') || '5', 10);
       gameWS.send('create_room', { player_name: myName, remove_count: removeCount });
     } else if (code) {
-      setConnectingText('正在加入房间…');
+      setConnectingText('正在加入房间...');
       gameWS.send('join_room', { room_code: code.toUpperCase(), player_name: myName });
     } else {
-      // 没有 action 也没有 code，退回首页
       window.location.href = '/';
     }
   });
 })();
 
-// ── 消息处理 ─────────────────────────────────────────────────────────────
-
 function handleRoomCreated(msg) {
-  // 服务端对 create_room 和 join_room 都会先发 room_created
-  myId     = msg.player_id;
+  myId = msg.player_id;
   roomCode = msg.room_code;
   sessionStorage.setItem('room_code', roomCode);
   document.getElementById('room-code-display').textContent = roomCode;
@@ -153,17 +146,16 @@ function handleRoomCreated(msg) {
 }
 
 function handleRoomUpdate(msg) {
-  players  = msg.players;
+  players = msg.players;
   roomCode = msg.room_code;
 
-  // 如果 room_created 因某种原因还没设 myId，用名字推断
   if (!myId) {
-    const me = players.find(p => p.name === myName);
+    const me = players.find((p) => p.name === myName);
     if (me) myId = me.id;
   }
 
-  const me = players.find(p => p.id === myId);
-  isHost  = me ? me.is_host  : false;
+  const me = players.find((p) => p.id === myId);
+  isHost = me ? me.is_host : false;
   isReady = me ? me.is_ready : false;
 
   hideConnectingOverlay();
@@ -171,181 +163,182 @@ function handleRoomUpdate(msg) {
   renderControls();
 }
 
-function handleGameStart(msg) {
+function handleGameStart() {
   sessionStorage.setItem('room_code', roomCode);
-  // 不在这里断开 WS — 跳转后浏览器会自动关闭
   window.location.href = `/game?code=${roomCode}`;
 }
 
 function handleError(msg) {
   hideConnectingOverlay();
-  const errMsg = msg.message || '发生错误';
-  showToast(errMsg, 'error', 5000);
-  // 房间不存在等致命错误 → 允许用户手动回去
+  showToast(msg.message || '发生错误', 'error', 5000);
 }
 
-// ── 渲染玩家列表 ─────────────────────────────────────────────────────────
 function renderPlayers() {
   const grid = document.getElementById('player-grid');
   grid.innerHTML = '';
 
   for (let i = 0; i < 7; i++) {
-    const p   = players[i] || null;
+    const p = players[i] || null;
     const div = document.createElement('div');
 
     if (!p) {
       div.className = 'player-slot empty';
       div.innerHTML = `
         <div class="w-11 h-11 rounded-full border-2 border-dashed border-white/20 flex items-center justify-center">
-          <span style="font-size:18px;opacity:0.3">👤</span>
+          <span style="font-size:18px;opacity:0.3">+</span>
         </div>
         <span class="text-xs text-white/25">等待中</span>
       `;
     } else {
       const isSelf = p.id === myId;
-      const colors = ['#f59e0b','#10b981','#3b82f6','#a855f7','#ef4444','#06b6d4','#f97316'];
-      const bg     = colors[players.indexOf(p) % colors.length];
+      const colors = ['#f59e0b', '#10b981', '#3b82f6', '#a855f7', '#ef4444', '#06b6d4', '#f97316'];
+      const bg = colors[players.indexOf(p) % colors.length];
 
       let badge = '';
-      if (p.is_host)       badge = `<span class="status-badge status-host">👑 房主</span>`;
-      else if (p.is_ready) badge = `<span class="status-badge status-ready">✓ 已准备</span>`;
-      else                 badge = `<span class="status-badge status-waiting">等待中</span>`;
+      if (p.is_host) badge = `<span class="status-badge status-host">房主</span>`;
+      else if (p.is_bot) badge = `<span class="status-badge status-ready">AI</span>`;
+      else if (p.is_ready) badge = `<span class="status-badge status-ready">已准备</span>`;
+      else badge = `<span class="status-badge status-waiting">等待中</span>`;
 
       div.className = 'player-slot occupied' +
         (isSelf ? ' me' : '') +
-        (p.is_ready && !p.is_host ? ' ready-pulse' : '');
+        (p.is_ready && !p.is_host && !p.is_bot ? ' ready-pulse' : '');
       div.innerHTML = `
         <div class="avatar" style="background:linear-gradient(135deg,${bg},${bg}cc)">
-          ${avatarEmoji(p.name)}
+          ${p.is_bot ? 'AI' : avatarEmoji(p.name)}
         </div>
         <span class="text-sm font-semibold text-white truncate max-w-full px-1"
               title="${esc(p.name)}">${esc(p.name)}${isSelf ? ' (我)' : ''}</span>
         ${badge}
       `;
     }
+
     grid.appendChild(div);
   }
 
   document.getElementById('player-count').textContent = `${players.length} / 7`;
 }
 
-// ── 渲染操作按钮 ─────────────────────────────────────────────────────────
 function renderControls() {
-  const btnReady  = document.getElementById('btn-ready');
-  const hostArea  = document.getElementById('host-area');
-  const btnStart  = document.getElementById('btn-start');
+  const btnReady = document.getElementById('btn-ready');
+  const hostArea = document.getElementById('host-area');
+  const btnStart = document.getElementById('btn-start');
   const startHint = document.getElementById('start-hint');
+  const botSummary = document.getElementById('bot-summary');
+  const btnAddBot = document.getElementById('btn-add-bot');
+  const btnRemoveBot = document.getElementById('btn-remove-bot');
+
+  const bots = players.filter((p) => p.is_bot);
+  const humans = players.filter((p) => !p.is_bot);
+  botSummary.textContent = `当前 ${bots.length} 名人机，真人 ${humans.length} 人`;
 
   if (isHost) {
     btnReady.style.display = 'none';
-    hostArea.style.display = 'block';
+    hostArea.style.display = 'flex';
 
-    const others   = players.filter(p => !p.is_host);
-    const allReady = others.every(p => p.is_ready);
-    const enough   = players.length >= 3;
+    const others = players.filter((p) => !p.is_host);
+    const allReady = others.every((p) => p.is_bot || p.is_ready);
+    const enough = players.length >= 3;
+
+    btnAddBot.disabled = players.length >= 7;
+    btnRemoveBot.disabled = bots.length === 0;
 
     if (!enough) {
-      btnStart.disabled     = true;
+      btnStart.disabled = true;
       startHint.textContent = `还需要 ${3 - players.length} 位玩家`;
     } else if (!allReady && others.length > 0) {
-      btnStart.disabled     = true;
-      startHint.textContent = '等待所有玩家准备';
+      btnStart.disabled = true;
+      startHint.textContent = '等待真人玩家全部准备';
     } else {
-      btnStart.disabled     = false;
-      startHint.textContent = `${players.length} 位玩家就绪，可以开始！`;
+      btnStart.disabled = false;
+      startHint.textContent = `${players.length} 位玩家已满足开局条件`;
     }
   } else {
     btnReady.style.display = 'block';
     hostArea.style.display = 'none';
-    btnReady.textContent   = isReady ? '取消准备' : '准备';
-    btnReady.classList.toggle('btn-primary',   !isReady);
-    btnReady.classList.toggle('btn-secondary',  isReady);
+    btnReady.textContent = isReady ? '取消准备' : '准备';
+    btnReady.classList.toggle('btn-primary', !isReady);
+    btnReady.classList.toggle('btn-secondary', isReady);
   }
 }
 
-// ── 操作函数 ─────────────────────────────────────────────────────────────
-function toggleReady() { gameWS.send('player_ready'); }
+function toggleReady() {
+  gameWS.send('player_ready');
+}
+
+function addBot() {
+  gameWS.send('add_bot');
+}
+
+function removeBot() {
+  gameWS.send('remove_bot');
+}
 
 function startGame() {
   document.getElementById('btn-start').disabled = true;
   gameWS.send('start_game');
 }
 
-function handleLeave(e) {
+function handleLeave() {
   gameWS.disconnect();
 }
 
 function copyToClipboard(text) {
-  // 优先使用新 API
-  // if (navigator.clipboard && window.isSecureContext) {
-  //   return navigator.clipboard.writeText(text);
-  // } else {
-    // 兼容性方案：创建一个隐藏的 textarea
-    const textArea = document.createElement("textarea");
-    textArea.value = text;
-    textArea.style.position = "fixed"; // 避免滚动
-    textArea.style.left = "-9999px";
-    textArea.style.top = "0";
-    document.body.appendChild(textArea);
-    textArea.focus();
-    textArea.select();
-    return new Promise((resolve, reject) => {
-      // 执行复制命令
-      document.execCommand('copy') ? resolve() : reject();
-      document.body.removeChild(textArea);
-    });
-  // }
+  const textArea = document.createElement('textarea');
+  textArea.value = text;
+  textArea.style.position = 'fixed';
+  textArea.style.left = '-9999px';
+  textArea.style.top = '0';
+  document.body.appendChild(textArea);
+  textArea.focus();
+  textArea.select();
+  return new Promise((resolve, reject) => {
+    document.execCommand('copy') ? resolve() : reject();
+    document.body.removeChild(textArea);
+  });
 }
 
-// 你的业务函数改为调用这个兼容函数
 function copyLink() {
   if (!roomCode) return;
   const url = `${location.origin}/?code=${roomCode}`;
   copyToClipboard(url)
-    .then(() => flash('btn-copy-link', '链接已复制 ✓'))
+    .then(() => flash('btn-copy-link', '已复制'))
     .catch(() => showToast('复制失败', 'error'));
 }
 
 function copyCode() {
   if (!roomCode) return;
   copyToClipboard(roomCode)
-    .then(() => flash('btn-copy-code', '已复制 ✓'))
-    .catch(() => {
-      console.error('复制房间代码失败');
-      showToast('复制失败', 'error');
-    });
+    .then(() => flash('btn-copy-code', '已复制'))
+    .catch(() => showToast('复制失败', 'error'));
 }
-
-// function copyLink() {
-//   if (!roomCode) return;
-//   const url = `${location.origin}/?code=${roomCode}`;
-//   navigator.clipboard.writeText(url).then(() => flash('btn-copy-link', '链接已复制 ✓'))
-//     .catch(() => showToast('复制失败', 'error'));
-// }
 
 function flash(id, text) {
   const btn = document.getElementById(id);
   const orig = btn.textContent;
   btn.textContent = text;
   btn.classList.add('copied');
-  setTimeout(() => { btn.textContent = orig; btn.classList.remove('copied'); }, 2000);
+  setTimeout(() => {
+    btn.textContent = orig;
+    btn.classList.remove('copied');
+  }, 2000);
 }
 
-// ── 连接中遮罩 ───────────────────────────────────────────────────────────
-function setConnectingText(t) {
-  document.getElementById('connecting-text').textContent = t;
+function setConnectingText(text) {
+  document.getElementById('connecting-text').textContent = text;
 }
+
 function hideConnectingOverlay() {
   const el = document.getElementById('connecting-overlay');
   if (el) el.remove();
 }
 
-// ── 工具函数 ─────────────────────────────────────────────────────────────
 function esc(s) {
-  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
+
 function avatarEmoji(name) {
-  const pool = ['🦊','🐻','🐼','🐯','🦁','🐮','🐷','🐸','🐧','🦋'];
+  const pool = ['🐯', '🦊', '🐼', '🐧', '🦁', '🐸', '🐵', '🐨', '🐳', '🦄'];
   let h = 0;
   for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) & 0xffff;
   return pool[h % pool.length];

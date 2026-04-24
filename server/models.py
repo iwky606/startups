@@ -24,6 +24,14 @@ class PlayerReadyMsg(TypedDict):
     type: str          # "player_ready"
 
 
+class AddBotMsg(TypedDict):
+    type: str          # "add_bot"
+
+
+class RemoveBotMsg(TypedDict):
+    type: str          # "remove_bot"
+
+
 class StartGameMsg(TypedDict):
     type: str          # "start_game"
 
@@ -54,6 +62,7 @@ class PlayerInfo(TypedDict):
     name: str
     is_host: bool
     is_ready: bool
+    is_bot: bool
 
 
 class RoomCreatedMsg(TypedDict):
