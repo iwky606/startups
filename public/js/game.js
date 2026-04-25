@@ -615,18 +615,10 @@ function _initLogDrag() {
   let startX, startY, startLeft, startTop;
 
   header.addEventListener('mousedown', e => {
-    const rect = panel.getBoundingClientRect();
     dragging  = true;
     hasMoved  = false;
     startX    = e.clientX;
     startY    = e.clientY;
-    startLeft = rect.left;
-    startTop  = rect.top;
-    // 切换成绝对坐标定位，脱离 right/bottom 锚点
-    panel.style.right  = 'auto';
-    panel.style.bottom = 'auto';
-    panel.style.left   = startLeft + 'px';
-    panel.style.top    = startTop  + 'px';
     header.style.cursor = 'grabbing';
     e.preventDefault();
   });
@@ -635,11 +627,23 @@ function _initLogDrag() {
     if (!dragging) return;
     const dx = e.clientX - startX;
     const dy = e.clientY - startY;
-    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) hasMoved = true;
-    const maxL = window.innerWidth  - panel.offsetWidth;
-    const maxT = window.innerHeight - panel.offsetHeight;
-    panel.style.left = Math.max(0, Math.min(maxL, startLeft + dx)) + 'px';
-    panel.style.top  = Math.max(0, Math.min(maxT, startTop  + dy)) + 'px';
+    if (!hasMoved && (Math.abs(dx) > 3 || Math.abs(dy) > 3)) {
+      // 首次超过阈值才切换成 left/top 定位，单纯点击不改变锚点
+      const rect  = panel.getBoundingClientRect();
+      startLeft   = rect.left;
+      startTop    = rect.top;
+      panel.style.right  = 'auto';
+      panel.style.bottom = 'auto';
+      panel.style.left   = startLeft + 'px';
+      panel.style.top    = startTop  + 'px';
+      hasMoved = true;
+    }
+    if (hasMoved) {
+      const maxL = window.innerWidth  - panel.offsetWidth;
+      const maxT = window.innerHeight - panel.offsetHeight;
+      panel.style.left = Math.max(0, Math.min(maxL, startLeft + dx)) + 'px';
+      panel.style.top  = Math.max(0, Math.min(maxT, startTop  + dy)) + 'px';
+    }
   });
 
   document.addEventListener('mouseup', () => {
