@@ -10,10 +10,10 @@
 #player-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
+  gap: 8px;
 }
 @media (max-width: 480px) {
-  #player-grid { grid-template-columns: repeat(2, 1fr); }
+  #player-grid { gap: 6px; }
 }
 @keyframes pulse-ring {
   0%   { box-shadow: 0 0 0 0 rgba(74,222,128,0.5); }
@@ -34,7 +34,7 @@
 }
 </style>
 </head>
-<body class="felt-bg min-h-screen flex flex-col">
+<body class="felt-bg flex flex-col" style="height:100dvh;overflow:hidden">
 
 <div id="toast-container" class="toast-container"></div>
 
@@ -43,43 +43,45 @@
   <p style="color:#fff;font-size:16px" id="connecting-text">连接服务器中...</p>
 </div>
 
-<header class="flex items-center justify-between px-6 py-4" style="background:rgba(0,0,0,0.2);">
+<header class="flex items-center justify-between px-4 py-2 sm:px-6 sm:py-3" style="background:rgba(0,0,0,0.2);">
   <a href="/" class="btn btn-sm btn-secondary" onclick="handleLeave(event)">返回首页</a>
   <span class="font-bold text-white/80 text-sm tracking-wider">初创公司</span>
   <div style="width:80px"></div>
 </header>
 
-<main class="flex-1 flex flex-col items-center justify-center p-4 gap-6">
-  <div class="panel-glass p-6 w-full max-w-md text-center flex flex-col gap-4">
-    <p class="text-white/60 text-sm font-medium tracking-wider uppercase">房间码</p>
-    <div id="room-code-display" class="room-code-display">------</div>
-    <div class="flex gap-3 justify-center flex-wrap">
-      <button class="btn btn-sm btn-ghost" id="btn-copy-code" onclick="copyCode()">复制房间码</button>
-      <button class="btn btn-sm btn-ghost" id="btn-copy-link" onclick="copyLink()">复制邀请链接</button>
+<main class="flex-1 min-h-0 overflow-hidden flex flex-col items-center justify-start py-3 gap-3">
+  <!-- 房间码：紧凑横排 -->
+  <div class="panel-glass px-4 py-2 w-full max-w-md flex items-center gap-3">
+    <span class="text-white/50 text-xs font-medium tracking-wider uppercase flex-shrink-0">房间码</span>
+    <div id="room-code-display" class="room-code-display flex-shrink-0" style="font-size:20px;letter-spacing:0.18em;line-height:1.3">------</div>
+    <div class="flex gap-2 ml-auto flex-shrink-0">
+      <button class="btn btn-sm btn-ghost" id="btn-copy-code" onclick="copyCode()">复制码</button>
+      <button class="btn btn-sm btn-ghost" id="btn-copy-link" onclick="copyLink()">复制链接</button>
     </div>
   </div>
 
-  <div class="panel-glass p-6 w-full max-w-md flex flex-col gap-4">
+  <!-- 玩家列表 -->
+  <div class="panel-glass p-3 w-full max-w-md flex flex-col gap-2">
     <div class="flex items-center justify-between">
-      <h2 class="font-bold text-white text-base">等待玩家加入</h2>
-      <span id="player-count" class="text-white/50 text-sm">0 / 7</span>
+      <h2 class="font-bold text-white text-sm">等待玩家加入</h2>
+      <span id="player-count" class="text-white/50 text-xs">0 / 7</span>
     </div>
     <div id="player-grid"></div>
-    <p class="text-center text-xs text-white/35 pt-1">至少 3 人 · 最多 7 人</p>
+    <p class="text-center text-xs text-white/35">至少 3 人 · 最多 7 人</p>
   </div>
 
-  <div class="flex flex-col gap-3 w-full max-w-md">
+  <div class="flex flex-col gap-2 w-full max-w-md">
     <button id="btn-ready" class="btn btn-primary btn-lg w-full" onclick="toggleReady()" style="display:none">
       准备
     </button>
-    <div id="host-area" style="display:none" class="flex flex-col gap-3">
-      <div class="panel-glass p-4 flex items-center justify-between gap-3">
+    <div id="host-area" style="display:none" class="flex flex-col gap-2">
+      <div class="panel-glass px-4 py-2 flex items-center justify-between gap-3">
         <div>
           <div class="text-white text-sm font-semibold">人机管理</div>
           <div id="bot-summary" class="text-xs text-white/45">当前 0 名人机</div>
         </div>
         <div class="flex gap-2">
-          <button id="btn-remove-bot" class="btn btn-sm btn-secondary" onclick="removeBot()">- AI</button>
+          <button id="btn-remove-bot" class="btn btn-sm btn-secondary" onclick="removeBot()">− AI</button>
           <button id="btn-add-bot" class="btn btn-sm btn-primary" onclick="addBot()">+ AI</button>
         </div>
       </div>
@@ -184,10 +186,10 @@ function renderPlayers() {
     if (!p) {
       div.className = 'player-slot empty';
       div.innerHTML = `
-        <div class="w-11 h-11 rounded-full border-2 border-dashed border-white/20 flex items-center justify-center">
-          <span style="font-size:18px;opacity:0.3">+</span>
+        <div style="width:28px;height:28px;border-radius:50%;border:2px dashed rgba(255,255,255,0.2);display:flex;align-items:center;justify-content:center;flex-shrink:0">
+          <span style="font-size:13px;opacity:0.3">+</span>
         </div>
-        <span class="text-xs text-white/25">等待中</span>
+        <span style="font-size:10px;color:rgba(255,255,255,0.25);line-height:1.3">等待中</span>
       `;
     } else {
       const isSelf = p.id === myId;
