@@ -9,5 +9,6 @@ run6:
 login_server:
 	ssh root@[${server_ip}]
 
+# 触发git hook, 自动重启
 deploy:
 	git push server master
