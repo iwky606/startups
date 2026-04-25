@@ -53,6 +53,9 @@ class GameState:
         self._last_card_player: Optional[str] = None
         self._scores: Optional[dict] = None
 
+        self._action_log: list[dict] = []
+        self._turn_number: int = 0
+
     @property
     def current_player_id(self) -> str:
         return self._player_ids[self._current_index]
@@ -101,6 +104,15 @@ class GameState:
             "can_play_to_area": list(range(len(self._hands[player_id]))),
         }
 
+    def _log_action(self, player_id: str, action: str, detail: str):
+        self._action_log.append({
+            "turn": self._turn_number,
+            "player_id": player_id,
+            "player_name": self._player_names[player_id],
+            "action": action,
+            "detail": detail,
+        })
+
     def _check_turn(self, player_id: str, expected_phase: str):
         if self._phase != "playing":
             raise ValueError("游戏未在进行中")
@@ -132,6 +144,7 @@ class GameState:
             self._last_card_drawn = True
             self._last_card_player = player_id
 
+        self._log_action(player_id, "draw_card", f"摸牌 {card}，消耗 {cost} 💰")
         self._turn_phase = "play"
         return card
 
@@ -154,6 +167,7 @@ class GameState:
         coins_gained = slot["coins"]
         self._coins[player_id] += coins_gained
         self._turn_context["picked_from_market"] = card_type
+        self._log_action(player_id, "pick_market", f"从市场取 {card_type}，获得 {coins_gained} 💰")
         self._turn_phase = "play"
         return {"card": card_type, "coins_gained": coins_gained}
 
@@ -171,6 +185,7 @@ class GameState:
 
         hand.pop(hand_index)
         self._market.append({"card": card_type, "coins": 0})
+        self._log_action(player_id, "play_to_market", f"将 {card_type} 打出到市场")
         self._end_turn()
 
     def play_to_area(self, player_id: str, hand_index: int):
@@ -184,6 +199,7 @@ class GameState:
         hand.pop(hand_index)
         self._areas[player_id][card_type] += 1
         self._update_majority(card_type)
+        self._log_action(player_id, "play_to_area", f"将 {card_type} 放入放置区")
         self._end_turn()
 
     def _update_majority(self, card_type: str):
@@ -221,6 +237,7 @@ class GameState:
 
     def _end_turn(self):
         self._turn_context = {}
+        self._turn_number += 1
 
         if self._last_card_drawn and self._last_card_player == self.current_player_id:
             self._phase = "scoring"
@@ -324,6 +341,7 @@ class GameState:
             "players": players_view,
             "major_shareholders": dict(self._major_shareholders),
             "last_card_drawn": self._last_card_drawn,
+            "action_log": self._action_log[-60:],
         }
 
         if self._phase == "ended" and self._scores:

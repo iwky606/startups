@@ -43,6 +43,8 @@
     <div class="market-grid" id="market-grid">
       <!-- 由 game.js 渲染 -->
     </div>
+    <!-- 移动端：市场区左下角透明预览（点击打开抽屉） -->
+    <div id="alp-mini" class="alp-mini" onclick="openDrawer()"></div>
   </div>
 
   <!-- 自己区域 -->
@@ -59,6 +61,32 @@
   </div>
 
 </div><!-- .game-board -->
+
+<!-- ── 操作记录面板（桌面，可拖动） ─────────────────────────────────── -->
+<div id="action-log-panel" class="action-log-panel">
+  <div id="alp-header" class="alp-header">
+    <span class="alp-title">📋 操作记录</span>
+    <span id="alp-toggle-icon" class="alp-toggle">▲</span>
+  </div>
+  <div id="alp-body" class="alp-body">
+    <div id="alp-list" class="alp-list"></div>
+  </div>
+</div>
+
+<!-- ── 移动端：底部抽屉遮罩 ─────────────────────────────────────────── -->
+<div id="alp-backdrop" class="alp-backdrop" onclick="closeDrawer()"></div>
+
+<!-- ── 移动端：底部抽屉 ──────────────────────────────────────────────── -->
+<div id="alp-drawer" class="alp-drawer">
+  <div class="alp-drawer-handle" onclick="closeDrawer()">
+    <div class="alp-drawer-pill"></div>
+    <span class="alp-drawer-title">📋 操作记录</span>
+    <span class="alp-drawer-close">✕</span>
+  </div>
+  <div class="alp-drawer-body">
+    <div id="alp-drawer-list" class="alp-list"></div>
+  </div>
+</div>
 
 <!-- ── 调试面板（按 ` 键切换） ─────────────────────────────────────────── -->
 <div id="debug-panel" class="debug-panel" style="display:none">

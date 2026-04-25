@@ -957,6 +957,84 @@ html, body {
   margin-top: 4px;
 }
 
+/* ── 操作记录：桌面浮动面板（可拖动） ───────────────────────────────── */
+.action-log-panel {
+  position: fixed;
+  bottom: 16px;
+  right: 16px;
+  width: 300px;
+  background: rgba(10, 25, 10, 0.92);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+  z-index: 80;
+  overflow: hidden;
+  backdrop-filter: blur(6px);
+}
+
+.alp-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 12px;
+  background: rgba(245, 158, 11, 0.12);
+  cursor: grab;
+  user-select: none;
+  border-bottom: 1px solid rgba(245,158,11,0.2);
+}
+.alp-header:hover { background: rgba(245,158,11,0.18); }
+.alp-title  { font-size: 12px; font-weight: 600; color: var(--color-gold); pointer-events: none; }
+.alp-toggle { font-size: 10px; color: rgba(255,255,255,0.5); pointer-events: none; }
+
+.alp-body {
+  max-height: 200px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(245,158,11,0.3) transparent;
+}
+.alp-body::-webkit-scrollbar { width: 4px; }
+.alp-body::-webkit-scrollbar-thumb { background: rgba(245,158,11,0.3); border-radius: 2px; }
+
+/* ── 共用：条目列表 ─────────────────────────────────────────────────── */
+.alp-list  { display: flex; flex-direction: column; gap: 1px; padding: 4px 0; }
+.alp-empty { font-size: 11px; color: rgba(255,255,255,0.3); text-align: center; padding: 10px; }
+
+.alp-entry {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  font-size: 11px;
+  color: rgba(255,255,255,0.7);
+  border-left: 2px solid transparent;
+  transition: background 0.1s;
+}
+.alp-entry:hover { background: rgba(255,255,255,0.05); }
+.alp-me { border-left-color: var(--color-gold); background: rgba(245,158,11,0.06); }
+.alp-me .alp-name { color: var(--color-gold); }
+
+.alp-turn {
+  font-size: 9px; color: rgba(255,255,255,0.3);
+  min-width: 22px; font-variant-numeric: tabular-nums;
+}
+.alp-avatar {
+  width: 16px; height: 16px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 9px; font-weight: 700; color: #fff; flex-shrink: 0;
+}
+.alp-name {
+  font-size: 10px; font-weight: 600; color: rgba(255,255,255,0.8);
+  max-width: 50px; overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap; flex-shrink: 0;
+}
+.alp-icon   { flex-shrink: 0; font-size: 12px; }
+.alp-detail { font-size: 10px; color: rgba(255,255,255,0.6); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ── 移动端：mini 透明预览（桌面隐藏） ──────────────────────────────── */
+.alp-mini   { display: none; }
+.alp-backdrop { display: none; }
+.alp-drawer { display: none; }
+
 /* ════════════════════════════════════════════════════════════════════════
    移动端适配  max-width: 640px
    ════════════════════════════════════════════════════════════════════════ */
@@ -1024,16 +1102,24 @@ html, body {
     flex: 1;
     min-height: 0;
     padding: 7px;
+    position: relative;   /* 供 alp-mini 绝对定位 */
+    align-items: flex-start;
+    justify-content: center;
   }
 
-  /* 市场卡稍小 */
+  /* 市场卡固定宽度 = 手牌宽度，防止跨阶段尺寸抖动 */
   .market-grid {
-    grid-template-columns: repeat(3, minmax(56px, 1fr));
-    grid-auto-rows: minmax(72px, 110px);
+    grid-template-columns: repeat(3, 60px);
+    grid-auto-rows: 80px;
     gap: 6px;
+    justify-content: center;
+    overflow-y: auto;
+    max-height: 100%;
   }
-  .mcard-emoji { font-size: 28px; }
+  .mcard-emoji { font-size: 26px; }
   .mcard-total { font-size: 10px; }
+  .deck-emoji  { font-size: 22px; }
+  .deck-label  { font-size: 10px; }
 
   /* ── 自己区域全宽，紧凑 ───────────────────────────────────────────────── */
   .area-self {
@@ -1073,4 +1159,113 @@ html, body {
 
   /* ── 回合条 ──────────────────────────────────────────────────────────── */
   .turn-banner { height: 38px; font-size: 12px; }
+
+  /* ── 操作记录：移动端完全重写 ─────────────────────────────────────── */
+
+  /* 桌面浮动面板隐藏 */
+  .action-log-panel { display: none !important; }
+
+  /* 市场区左下角透明 mini 预览（绝对定位在 .area-market 内） */
+  .alp-mini {
+    display: block;
+    position: absolute;
+    bottom: 8px;
+    left: 8px;
+    z-index: 10;
+    cursor: pointer;
+    max-width: 52%;
+    pointer-events: auto;
+  }
+  .alp-mini-entry {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 9px;
+    color: rgba(255,255,255,0.4);
+    line-height: 1.6;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .alp-mini-dot {
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    opacity: 0.55;
+  }
+
+  /* 遮罩 */
+  .alp-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.55);
+    z-index: 199;
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+  .alp-backdrop.open { opacity: 1; }
+
+  /* 底部抽屉 */
+  .alp-drawer {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    max-height: 65vh;
+    background: rgba(8, 22, 8, 0.98);
+    border-radius: 18px 18px 0 0;
+    border-top: 1px solid rgba(245,158,11,0.35);
+    box-shadow: 0 -6px 30px rgba(0,0,0,0.6);
+    z-index: 200;
+    display: none;
+    flex-direction: column;
+    transform: translateY(100%);
+    transition: transform 0.3s cubic-bezier(0.32, 0, 0.67, 1);
+  }
+  .alp-drawer.open { transform: translateY(0); }
+
+  .alp-drawer-handle {
+    display: flex;
+    align-items: center;
+    padding: 10px 16px 8px;
+    cursor: pointer;
+    user-select: none;
+    flex-shrink: 0;
+    border-bottom: 1px solid rgba(245,158,11,0.15);
+    gap: 10px;
+  }
+  .alp-drawer-pill {
+    width: 36px; height: 4px;
+    border-radius: 2px;
+    background: rgba(255,255,255,0.2);
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    top: 6px;
+  }
+  .alp-drawer-title {
+    flex: 1;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--color-gold);
+    text-align: center;
+  }
+  .alp-drawer-close {
+    font-size: 14px;
+    color: rgba(255,255,255,0.4);
+    padding: 2px 4px;
+  }
+
+  .alp-drawer-body {
+    flex: 1;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: env(safe-area-inset-bottom, 8px);
+  }
+  .alp-drawer-body .alp-list { padding: 6px 0; }
+  .alp-drawer-body .alp-entry { padding: 6px 16px; font-size: 12px; gap: 7px; }
+  .alp-drawer-body .alp-avatar { width: 18px; height: 18px; font-size: 10px; }
+  .alp-drawer-body .alp-name { max-width: 60px; font-size: 11px; }
+  .alp-drawer-body .alp-detail { font-size: 11px; }
 }

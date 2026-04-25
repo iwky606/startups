@@ -62,6 +62,8 @@ let selHndIdx = -1;      // 被选中的手牌索引，-1=无
       p.style.display = (p.style.display === 'none') ? '' : 'none';
     }
   });
+
+  _initLogDrag();
 })();
 
 // ── 消息处理 ────────────────────────────────────────────────────────────
@@ -122,6 +124,7 @@ function renderAll(state) {
   _renderSelfPanel(state);
   _renderHand(state);       // 内部调用 _applySel() + _updateActionBtns()
   _renderActionBar(state);  // 内部调用 _updateActionBtns()
+  _renderActionLog(state);
 }
 
 // ── 回合指示器 ──────────────────────────────────────────────────────────
@@ -551,6 +554,147 @@ function _renderGameEnd(msg) {
 
 function returnToLobby(code) {
   window.location.href = `/room?code=${code}`;
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// 操作记录
+// ════════════════════════════════════════════════════════════════════════
+
+const ACTION_ICONS = {
+  draw_card:     '🃏',
+  pick_market:   '🛒',
+  play_to_market:'📤',
+  play_to_area:  '📥',
+};
+
+let _logCollapsed = false;
+let _drawerOpen   = false;
+
+// ── 桌面：折叠/展开（由拖拽逻辑在无移动时触发） ──────────────────────
+function toggleActionLog() {
+  _logCollapsed = !_logCollapsed;
+  const body = document.getElementById('alp-body');
+  const icon = document.getElementById('alp-toggle-icon');
+  if (body) body.style.display = _logCollapsed ? 'none' : '';
+  if (icon) icon.textContent   = _logCollapsed ? '▼' : '▲';
+}
+
+// ── 移动端：抽屉开/关 ────────────────────────────────────────────────
+function openDrawer() {
+  _drawerOpen = true;
+  const drawer   = document.getElementById('alp-drawer');
+  const backdrop = document.getElementById('alp-backdrop');
+  if (backdrop) { backdrop.style.display = 'block'; requestAnimationFrame(() => backdrop.classList.add('open')); }
+  if (drawer)   { drawer.style.display   = 'flex';  requestAnimationFrame(() => drawer.classList.add('open')); }
+  const dl = document.getElementById('alp-drawer-list');
+  if (dl) requestAnimationFrame(() => { dl.scrollTop = dl.scrollHeight; });
+}
+
+function closeDrawer() {
+  _drawerOpen = false;
+  const drawer   = document.getElementById('alp-drawer');
+  const backdrop = document.getElementById('alp-backdrop');
+  if (drawer)   drawer.classList.remove('open');
+  if (backdrop) backdrop.classList.remove('open');
+  // 动画结束后隐藏（300ms 与 CSS transition 同步）
+  setTimeout(() => {
+    if (!_drawerOpen) {
+      if (drawer)   drawer.style.display   = 'none';
+      if (backdrop) backdrop.style.display = 'none';
+    }
+  }, 320);
+}
+
+// ── 桌面：拖拽初始化 ─────────────────────────────────────────────────
+function _initLogDrag() {
+  const panel  = document.getElementById('action-log-panel');
+  const header = document.getElementById('alp-header');
+  if (!panel || !header) return;
+
+  let dragging = false, hasMoved = false;
+  let startX, startY, startLeft, startTop;
+
+  header.addEventListener('mousedown', e => {
+    const rect = panel.getBoundingClientRect();
+    dragging  = true;
+    hasMoved  = false;
+    startX    = e.clientX;
+    startY    = e.clientY;
+    startLeft = rect.left;
+    startTop  = rect.top;
+    // 切换成绝对坐标定位，脱离 right/bottom 锚点
+    panel.style.right  = 'auto';
+    panel.style.bottom = 'auto';
+    panel.style.left   = startLeft + 'px';
+    panel.style.top    = startTop  + 'px';
+    header.style.cursor = 'grabbing';
+    e.preventDefault();
+  });
+
+  document.addEventListener('mousemove', e => {
+    if (!dragging) return;
+    const dx = e.clientX - startX;
+    const dy = e.clientY - startY;
+    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) hasMoved = true;
+    const maxL = window.innerWidth  - panel.offsetWidth;
+    const maxT = window.innerHeight - panel.offsetHeight;
+    panel.style.left = Math.max(0, Math.min(maxL, startLeft + dx)) + 'px';
+    panel.style.top  = Math.max(0, Math.min(maxT, startTop  + dy)) + 'px';
+  });
+
+  document.addEventListener('mouseup', () => {
+    if (!dragging) return;
+    if (!hasMoved) toggleActionLog();   // 点击未移动 → 折叠/展开
+    dragging = false;
+    header.style.cursor = '';
+  });
+}
+
+// ── 公共：构建单条记录 HTML ───────────────────────────────────────────
+function _buildLogEntryHTML(entry) {
+  const isMe  = entry.player_id === myId;
+  const icon  = ACTION_ICONS[entry.action] || '▸';
+  const color = _nameColor(entry.player_name);
+  const cls   = 'alp-entry' + (isMe ? ' alp-me' : '');
+  return `<div class="${cls}">
+    <span class="alp-turn">T${entry.turn}</span>
+    <span class="alp-avatar" style="background:${color}">${(entry.player_name||'?')[0].toUpperCase()}</span>
+    <span class="alp-name">${_esc(entry.player_name)}</span>
+    <span class="alp-icon">${icon}</span>
+    <span class="alp-detail">${_esc(entry.detail)}</span>
+  </div>`;
+}
+
+function _renderActionLog(state) {
+  const log = (state && state.action_log) || [];
+  const html = log.length
+    ? log.map(_buildLogEntryHTML).join('')
+    : '<div class="alp-empty">暂无操作记录</div>';
+
+  // 桌面面板
+  const list = document.getElementById('alp-list');
+  if (list) { list.innerHTML = html; list.scrollTop = list.scrollHeight; }
+
+  // 移动端抽屉
+  const dl = document.getElementById('alp-drawer-list');
+  if (dl) {
+    dl.innerHTML = html;
+    if (_drawerOpen) dl.scrollTop = dl.scrollHeight;
+  }
+
+  // 移动端 mini 预览（最近 3 条）
+  const mini = document.getElementById('alp-mini');
+  if (mini) {
+    const recent = log.slice(-3);
+    mini.innerHTML = recent.map(entry => {
+      const color = _nameColor(entry.player_name);
+      const icon  = ACTION_ICONS[entry.action] || '▸';
+      return `<div class="alp-mini-entry">
+        <span class="alp-mini-dot" style="background:${color}"></span>
+        <span>${_esc(entry.player_name)} ${icon} ${_esc(entry.detail)}</span>
+      </div>`;
+    }).join('');
+  }
 }
 
 // ════════════════════════════════════════════════════════════════════════
