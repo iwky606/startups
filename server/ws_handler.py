@@ -35,6 +35,12 @@ async def broadcast_room_update(room: Room):
         "type": "room_update",
         "room_code": room.room_code,
         "players": room.player_list(),
+        "seats": room.seat_list(),
+        "remove_count": room.remove_count,
+        "total_cards": room.available_start_cards() + room.remove_count,
+        "required_cards": room.required_start_cards(),
+        "available_cards": room.available_start_cards(),
+        "can_start_by_cards": room.has_enough_start_cards(),
     })
 
 
@@ -300,6 +306,64 @@ async def handle_remove_bot(player_id: str, ws: WebSocket):
     await broadcast_room_update(room)
 
 
+async def handle_update_remove_count(player_id: str, data: dict, ws: WebSocket):
+    try:
+        remove_count = int(data["remove_count"])
+        room = room_manager.update_remove_count(player_id, remove_count)
+    except (KeyError, TypeError, ValueError) as exc:
+        await send_to_player(ws, {"type": "error", "message": str(exc)})
+        return
+
+    await broadcast_room_update(room)
+
+
+async def handle_move_seat(player_id: str, data: dict, ws: WebSocket):
+    try:
+        seat_index = int(data["seat_index"])
+        room, target_id = room_manager.request_seat_move(player_id, seat_index)
+    except (KeyError, TypeError, ValueError) as exc:
+        await send_to_player(ws, {"type": "error", "message": str(exc)})
+        return
+
+    if target_id is None:
+        await broadcast_room_update(room)
+        return
+
+    requester = room.players[player_id]
+    target = room.players[target_id]
+    await send_to_player(target.ws, {
+        "type": "seat_swap_request",
+        "requester_id": player_id,
+        "requester_name": requester.name,
+        "target_seat": seat_index,
+    })
+    await send_to_player(ws, {
+        "type": "seat_swap_result",
+        "success": True,
+        "message": f"已向 {target.name} 发出换座请求",
+    })
+
+
+async def handle_seat_swap_response(player_id: str, data: dict, ws: WebSocket):
+    accept = bool(data.get("accept"))
+    try:
+        room, requester_id = room_manager.respond_seat_swap(player_id, accept)
+    except ValueError as exc:
+        await send_to_player(ws, {"type": "error", "message": str(exc)})
+        return
+
+    if requester_id and requester_id in room.players:
+        responder = room.players[player_id]
+        await send_to_player(room.players[requester_id].ws, {
+            "type": "seat_swap_result",
+            "success": accept,
+            "message": f"{responder.name} {'同意' if accept else '拒绝'}了换座请求",
+        })
+
+    if accept:
+        await broadcast_room_update(room)
+
+
 async def handle_start_game(player_id: str, ws: WebSocket):
     try:
         room = room_manager.start_game(player_id)
@@ -399,9 +463,12 @@ async def handle_play_to_area(player_id: str, data: dict, ws: WebSocket):
     await _after_play(room)
 
 
-async def handle_disconnect(player_id: str):
+async def handle_disconnect(player_id: str, ws: WebSocket):
     room = room_manager.get_player_room(player_id)
     if room is None:
+        return
+
+    if not room_manager.owns_connection(player_id, ws):
         return
 
     if room.game_state is not None:
@@ -432,13 +499,19 @@ async def handle_connection(player_id: str, ws: WebSocket):
                 if new_id:
                     effective_id = new_id
             elif msg_type == "leave_room":
-                await handle_disconnect(effective_id)
+                await handle_disconnect(effective_id, ws)
             elif msg_type == "player_ready":
                 await handle_player_ready(effective_id)
             elif msg_type == "add_bot":
                 await handle_add_bot(effective_id, ws)
             elif msg_type == "remove_bot":
                 await handle_remove_bot(effective_id, ws)
+            elif msg_type == "update_remove_count":
+                await handle_update_remove_count(effective_id, data, ws)
+            elif msg_type == "move_seat":
+                await handle_move_seat(effective_id, data, ws)
+            elif msg_type == "seat_swap_response":
+                await handle_seat_swap_response(effective_id, data, ws)
             elif msg_type == "start_game":
                 await handle_start_game(effective_id, ws)
             elif msg_type == "draw_card":
@@ -454,4 +527,4 @@ async def handle_connection(player_id: str, ws: WebSocket):
 
     except WebSocketDisconnect:
         logger.info("player disconnected: %s", effective_id)
-        await handle_disconnect(effective_id)
+        await handle_disconnect(effective_id, ws)

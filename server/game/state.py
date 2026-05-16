@@ -1,7 +1,6 @@
 """Core game state and rules engine."""
 
 import json
-import random
 from typing import Optional
 
 from .deck import CARD_CONFIG, Deck
@@ -44,7 +43,7 @@ class GameState:
             pid: set() for pid in self._player_ids
         }
 
-        self._current_index: int = random.randrange(len(self._player_ids))
+        self._current_index: int = 0
         self._turn_phase: str = "draw"
         self._turn_context: dict = {}
 
